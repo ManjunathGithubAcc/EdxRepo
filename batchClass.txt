@@ -1,0 +1,125 @@
+public class DNBCallCreatorBatch implements Database.Batchable<sObject>
+{
+    public Database.QueryLocator start(Database.BatchableContext bc) {
+        
+        DateTime dt = System.Now().addHours(-1);
+        String query = 'SELECT ID, Company, Address_1__c, Address_2__c, City__c, Country__c, Postal_Code__c, State_Province__c, Phone, DNB_IsSynchronous__c FROM Lead WHERE LastModifiedDate >=:dt';
+        return Database.getQuerylocator(query);
+
+    }
+    public void execute(Database.BatchableContext bc, List<Lead> scope)
+    {
+        
+        Id psoRecordType = Schema.SObjectType.Lead.getRecordTypeInfosByName().get('PSO Lead').getRecordTypeId();//fetch pso lead record type id
+        Id splRecordType = Schema.SObjectType.Lead.getRecordTypeInfosByName().get('Sales Play Lead Record Type').getRecordTypeId();//fetch Sales Play Lead Record Type id
+        Set<ID> IdSetLead = new Set<ID>();
+		List<DNB_Call__c> listdnbiCallLeadInsert = new List<DNB_Call__c>();
+		
+		Map<Id, List<LeadHistory>> mapOfLeadHistory = new Map<Id, List<LeadHistory>>();
+		List<LeadHistory> leadHistoryRecords = [SELECT LeadId, Field, OldValue, NewValue FROM LeadHistory WHERE LeadId IN: scope Order BY LeadId];
+
+		for(LeadHistory lh : leadHistoryRecords)
+		{
+			String temp;
+			mapOfLeadHistory.put(lh.LeadId, lh);
+			temp = lh.LeadId;
+		}
+		
+        String callType = null; 
+        
+        for(Lead newlead: scope)
+        {
+			if(newLead.CreatedDate == newLead.ModifiedDate)
+			{
+				if(DNBIUtilities.getMakeDNBDirectCalloutFlag(DNBIUtilities.OBJECT_LEAD, newLead.Country__c, false))
+				{
+					if(psoRecordType!=null && newLead.recordtypeId!=null && !(newLead.recordtypeId.equals(psoRecordType)))
+					{
+						if(newLead.Company != null && newLead.Country__c != null)
+						{
+							// Check if Lead is inserted via dataloader or integration user and Duns is present then make callType as Detail otherwise Both
+							callType = !DNBIUtilities.isDNBIntegrationUser() && newLead.DUNS__c!=null ? DNBIUtilities.CALL_TYPE_DETAIL : DNBIUtilities.CALL_TYPE_BOTH;
+
+							String callSource = DNBIUtilities.CALL_SOURCE_SYSTEM_LEAD; 
+							
+							// Call the method createDNBICallLog to create a new DNB_Call__c record
+							DNB_Call__c dnbiCallLeadObjInsert = DNBICallAuditUtility.createDNBICallLog(callType, 
+																									   newLead.Company,newLead.Address_1__c,
+																									   newLead.Address_2__c,
+																									   newLead.City__c,newLead.Country__c,
+																									   newLead.DUNS__c,newLead.Postal_Code__c,
+																									   newLead.State_Province__c,
+																									   newLead.Phone,
+																									   DNBIUtilities.OBJECT_LEAD,newLead.ID, 
+																									   callSource,DNBIUtilities.CALL_STATUS_QUEUED,
+																									   newLead.DNB_IsSynchronous__c);                    
+							dnbiCallLeadObjInsert.Lead__c = newLead.ID;
+							
+							listdnbiCallLeadInsert.add(dnbiCallLeadObjInsert);
+							System.debug('*******The values at line 44 '+callType+' callSource '+callSource+' dnbiCallLeadObjInsert ');
+						}
+					}
+				}
+            }
+			
+			else //If the Lead is modified after create.
+			{
+				System.debug('Entered Update block');
+				boolean latticeflag = false; //Flag to be made true only for lattice user
+				if((newLead.recordtypeId == splRecordType || Userinfo.getUserID() == '0053400000Bigx2'))
+				{
+					latticeflag = true;
+				}
+				System.debug('The newLead in update event is '+newLead);
+				if(newLead.Company != null && newLead.Country__c != null)
+				{
+					System.debug('Lead Company and Country NOT null'); 
+					// If Name or Address1 or Address2 or City or State or Zip or Country is updated then make callType as Both
+					if((latticeflag == true) && 
+					(
+					(newLead.Company!=oldLead.Company)||(newLead.Address_1__c!=oldLead.Address_1__c) ||
+					(newLead.Address_2__c!=oldLead.Address_2__c)||(newLead.City__c!=oldLead.City__c)||
+					(newLead.State_Province__c!=oldLead.State_Province__c)||(newLead.Country__c!=oldLead.Country__c)||
+					(newLead.Postal_Code__c!=oldLead.Postal_Code__c)
+					))
+					{
+						System.debug('******The ID set is '+IdSetLead);
+						System.debug('******Bypass cleared');
+						System.debug('******The lead record for update is '+newLead); // Check if newLead is part of same transaction
+						System.debug('*****The lead country is '+newLead.Country__c);
+						System.debug('****The lead address is '+newLead.Address_1__c+' '+newLead.Address_2__c+' '+newLead.City__c+' '+newLead.State_Province__c+' '+newlead.Postal_Code__c);
+
+
+						//if(UserInfo.getProfileId() != '00e80000001BE9K')
+						//{ 
+						callType = DNBIUtilities.CALL_TYPE_BOTH;
+						String callSource = DNBIUtilities.CALL_SOURCE_SYSTEM_LEAD_UPDATE; 
+
+						// Call the method createDNBICallLog to create a new DNB_Call__c record
+						DNB_Call__c dnbiCallLeadObjInsert = DNBICallAuditUtility.createDNBICallLog(callType, newLead.Company,newLead.Address_1__c,newLead.Address_2__c,newLead.City__c,newLead.Country__c,newLead.DUNS__c,newLead.Postal_Code__c,newLead.State_Province__c,newLead.Phone,DNBIUtilities.OBJECT_LEAD,newLead.ID, callSource,DNBIUtilities.CALL_STATUS_QUEUED,newLead.DNB_IsSynchronous__c );                    
+						dnbiCallLeadObjInsert.Lead__c = newLead.ID;
+
+						listdnbiCallLeadInsert.add(dnbiCallLeadObjInsert);
+						//}
+					}
+				}
+			}
+        }
+        
+        if(listdnbiCallLeadInsert.size()> 0 && listdnbiCallLeadInsert!= null)
+        {  
+            //System.debug('Insertion of DNBICallObject due to Updation of Records in Lead Started ');
+            
+            //Inserting the list of DNB_Call__c records
+            Database.Saveresult[] insertRes = Database.insert(listdnbiCallLeadInsert, false); 
+
+            //Calling method to insert the errors, if any in the operation
+            CreateApexErrorLog.insertHandledExceptions(null, insertRes, null, null, 'ApexClass', 'DNB_Call__c', 'DNBILeadTriggerHelper');
+        }
+    }
+        
+    public void finish(Database.BatchableContext bc)
+    {
+    
+    }    
+}

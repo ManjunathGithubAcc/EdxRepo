@@ -1,0 +1,43 @@
+//*****************************************************************************************
+// Name             : CPQProductTableToProduct2Linker.cls
+// Description      : Populate the License SKU on CPQ Support Product Lookup to link CPQ Support Product Lookup and Product2 objects
+// Created By       : Vmware
+// Developed By     : Manjunath S
+// Created Date     : 08/10/2018
+
+
+global class CPQProductTableToProduct2Linker implements Database.Batchable<sObject>{
+
+    global Database.QueryLocator start(Database.BatchableContext BC){
+        string query = 'SELECT ID, CPQ_Product2_Link__c, CPQ_SKU__c FROM CPQ_Support_Product_Lookup__c WHERE CPQ_SKU__c = NULL';
+        return Database.getQueryLocator(query);
+    }
+
+    global void execute(Database.BatchableContext BC, List<CPQ_Support_Product_Lookup__c> scope){
+        List <String> splLicenceSKU = new List<String>();
+        List <CPQ_Support_Product_Lookup__c> spltoUpdateList = new List <CPQ_Support_Product_Lookup__c>();
+        for (CPQ_Support_Product_Lookup__c spl : scope)
+        {
+            splLicenceSKU.add(spl.CPQ_SKU__c);
+        }
+        
+        List<Product2> products = [SELECT ID, SKU__c FROM Product2 WHERE SKU__c IN: splLicenceSKU];
+        
+        for (Product2 prod : products)
+        {
+            for(CPQ_Support_Product_Lookup__c splToUpdate: scope)
+            {
+                if (splToUpdate.CPQ_SKU__c == prod.SKU__c)
+                {
+                    splToUpdate.CPQ_Product2_Link__c = prod.ID;
+                    spltoUpdateList.add(splToUpdate);
+                }
+            }
+        }
+        update splToUpdateList;
+    }
+
+    global void finish(Database.BatchableContext BC){
+
+    }
+}

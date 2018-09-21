@@ -1,0 +1,7 @@
+Price Conditions
+Lookup Queries
+Price Actions
+
+
+need ext ID on Price Rule.
+The Ext ID field to be mapped during data migration.

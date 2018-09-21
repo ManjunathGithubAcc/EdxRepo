@@ -1,0 +1,77 @@
+//*****************************************************************************************
+// Name             : CPQProductTableToProduct2LinkerTest.cls
+// Description      : Test Class for the CPQProductTableToProduct2Linker class.
+// Created By       : Vmware
+// Developed By     : Manjunath S
+// Created Date     : 08/10/2018
+
+@isTest(seeAllData = FALSE)
+public class CPQProductLookupToProduct2LinkerTest 
+{
+    @testSetup
+    static void setupMethod()
+    {
+        //set the data for 10 Products and 10 ProductLookup records for each Product
+        List <Product2> productList = new List <Product2>();
+        List <CPQ_Support_Product_Lookup__c> splList = new List<CPQ_Support_Product_Lookup__c>();
+        
+        for (Integer i = 0; i < 10; i++)
+        {
+            Product2 prod = new Product2();
+            prod.Name = 'Test Product '+i;
+            prod.SKU__c = 'Test SKU 00'+i;
+            productList.add(prod);
+        }
+        
+        for (Integer i = 0; i < 10; i++)
+        {
+            for (Integer j = 0; j < 10; j++)
+            {
+                CPQ_Support_Product_Lookup__c spl = new CPQ_Support_Product_Lookup__c();
+                spl.CPQ_SKU__c = 'Test SKU 00'+j;
+                splList.add(spl);
+            }
+        }
+    
+    insert splList;
+    insert productList;
+    }
+    
+    static testMethod void runTheBatchClass() 
+    {
+        Test.startTest();
+        CPQProductLookupToProduct2Linker obj = new CPQProductLookupToProduct2Linker();
+        ID batchID = DataBase.executeBatch(obj); 
+        Test.stopTest();
+            
+        List<CPQ_Support_Product_Lookup__c> updatedSPLs = [SELECT ID, CPQ_SKU__c, CPQ_Product2_Link__c FROM CPQ_Support_Product_Lookup__c];
+        List<Product2> products = [SELECT ID, SKU__c FROM Product2];
+        
+        if (updatedSPLs.size() > 0 && products.size() > 0)
+        {
+            //Track 1: Checking if the ProductLookup.SKU == Product2.SKU for all those ProductLookup under the same Product2ID
+            for (Product2 pro: products)
+            {
+                for (CPQ_Support_Product_Lookup__c updatedSPL: updatedSPLs)
+                {
+                    if (updatedSPL.CPQ_Product2_Link__c == pro.ID)
+                    {
+                        system.assertEquals(updatedSPL.CPQ_SKU__c , pro.SKU__c);
+                    }
+                }
+            }
+            
+            //Track 2: Checking if the Product Lookup.Product2ID == Product2ID for the same SKU
+            for (Product2 pro: products)
+            {
+                for (CPQ_Support_Product_Lookup__c updatedSPL: updatedSPLs)
+                {
+                    if (updatedSPL.CPQ_SKU__c == pro.SKU__c)
+                    {
+                        system.assertEquals(updatedSPL.CPQ_Product2_Link__c , pro.ID);
+                    }
+                }
+            }
+        }
+    }
+}

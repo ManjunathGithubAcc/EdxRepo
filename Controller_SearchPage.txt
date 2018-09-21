@@ -1,0 +1,2458 @@
+/*****************************************************************************************
+Name: addOpportunityProductController
+Copyright Â© VMware Inc.
+==========================================================================================
+==========================================================================================
+Purpose:
+--------
+    Controller class for addOpportunityProduct VF Page. New product search functionality on
+    Opportunity.
+==========================================================================================
+==========================================================================================
+History
+-------
+VERSION        AUTHOR                  DATE              DETAIL              
+1.0            Kunal Raj               17-Oct-2014      Initial Development
+               Sanjib Mahanta          07-Nov-2014      Added Amount field to included Line Item Amount CR-00104673
+               Bharat Parekh           13-Nov-2014      Added update opportunity call for CR-00116008 and also changes done in saveProduct() method to bypass the exception in catch block for Hybrid Cloud for System Admin Profile for CR-00115042.
+               Dalia Pan               16-Apr-2015      CR-00128044 : Adding new fields ACV Amount & TCV Amount, & including the logic. 
+               Uma Babu Chinta         19-May-2015      CR-00134490 : Added functionality to populate VMWProductLine__c field on opportunity for Airwatch Products.
+               Uma Babu Chinta         18-Jun-2015      Implementing defect fix for BUG-00122984
+               Uma Babu Chinta         23-Jun-2015      CR-00134775 : Added functionality to restrict Airwatch products access based on profiles  
+               Dalia Pan               7-June-2015      CR-00124276 : Changes to add Flat Rebate Message & Null checks for updating ACV values in UnitPrice  
+               Dalia Pan               29-July-2015     CR-00135498 : Redifining the Insert & Update statements of the records from the page for Flat Rebate Calculations. 
+               Dalia Pan               4-Sept-2015      CR-00135287 : Changes to get Before Rebate Amount on UI
+               Kshipra Nomulwar        02-Nov-2015      CR-00136197 : Allow saving the Opportunity Line Items only for few Profiles when expected close date is a past date.
+               Uma Babu Chinta         09-Nov-2015      CR-00135238 : Update the AW amount only while sending revenue number from VMStar - Jan-2016 Release 
+               Harish Patkar           10 Nov 2015      SF1 Sales Jan Release: Added prodSF1Name for SF1 mobile Product Search  
+               safiya  mohammad        20 Jan 2016      CR-00136849 RE: Follow Up from 10/28 NSX NM Meeting
+               safiya mohammad         10/March/2016    CR-00136131    MSO - Add Commas to all Amount fields for License, Subcription, Services Product Lines
+               Shivang                 29-April-2015    CR-00138572 : Bypass flat rebate for AW opportunity
+               Vijit                   7-Oct-2016   Changes for CR-00141228
+           Chhedika                7-Oct-2016       CR-00135729
+               Siva Adapa              24-Oct-2016      SF-450 Sales Forecasting
+               Alfonso Barros          12-Dec-2016      Did some refactor after line 1043, reusing code to improve coverage.
+           Bhuvaneshwari Venkatesh 12-Jan-2017  PICO chanegs for product search in CBD opportunity
+     Suresh Kumar       31-03-2017          SNS Updates
+     Prasenjeet Laha     09-06-2017                         For SaaS Sales Enablement 
+    Manish Yekhande    15-09-2017                         For SaaS Sales Enablement 
+     
+Bhuvaneshwari Venkatesh      12 May 2017     CR-00143285 -PICO PHASE 2
+Bhuvaneshwari Venkatesh      19 Feb 2018     CR-00146239 -Pico
+Bhavesh                  03 Jan 2018     SFP-36      Adding Specialist User in the SDDC products section
+Bhavesh                      14 June 2018    SFP-2013    Adding Specialist User 
+Kirti                        01 Aug 2018     VV-8985     Adding CSP Order ID for CSO
+Bhavesh                      18 Aug 2018    SFP-2013    Adding Specialist User 
+******************************************************************************************/ 
+
+public with sharing class addOpportunityProductController {
+
+public static boolean specielistFlag = false; //Add SFP-2013  
+ public boolean specielistEdit = false; //Add SFP-2013  
+  private static final String COMP_FREQ = 'Company Most Frequent';
+  private static final String MOST_FREQ = 'My Most Recent';
+  private static final String SELECT_PROD = 'Select Product';
+  private static final String SELECT_ONE = 'Select One';
+  private static final String SELECT_NONE = '---None---';
+  private static final String VALID_INPUT_ERROR = 'Please Enter valid Input parameter to Quantity, SNS';
+  private static final set<String> OPPTYPES = new Set<string>{'Renewal','Upsell'};
+
+  public string productPlaformValue {get;set;}
+  public string oppLineItemCounter {get;set;}
+
+  // Added for CR-00115042 - Start
+  public static final String SYSTEM_ADMIN = 'System Administrator';
+  // Added for CR-00115042 - End
+  
+  //Start - Siva Adapa Sales forecasting
+  public boolean isNewSddcSection{get; set;}
+  //End - Siva Adapa Sales forecasting
+  
+  public boolean error {get; set;}
+  
+  //Changes Start-Added for PICO Project-Bhuvaneshwari V
+   public boolean iscbd {get; set;}
+   public String CBDRecordTypeId;
+  //Changes End PICO Project-Bhuvaneshwari V
+  public boolean RebateStatus {get; set;} //CR-00124276 - 7June2015 - Dalia Pan
+  public boolean showSDDC {get; set;}
+  public boolean showServices {get; set;}
+  public boolean showHybrid {get; set;}
+  public boolean addNewProd {get; set;}{ addNewProd = false; }
+  
+  public boolean selectProdGrop {get; set;}
+  public boolean selectPlatform {get; set;}
+  public boolean isSuccess {get; set;}
+
+   //Added for CR-00143285 -Start
+  public list <string> prdPlatfrm=new list<string>();
+  //Added for CR-00143285 -End
+   
+  public boolean isEdit {get; set;}
+  public boolean isEditLicense {get; set;}// Added by Siva Adapa Sales froecasting
+  public boolean showSave {get; set;}{ showSave = false; }
+  public list<productSearchWrapper> myCompanyMostRecent;
+  public map<string, set<string>> platfrmGrpProdPlatformMap;
+
+  public String selectedItem { get; set; } { selectedItem = SELECT_ONE; }
+  
+  public List<SelectOption> prodGrpOptions {get; set;}
+  public String selectedProdGrp { get; set; }
+  
+  public List<SelectOption> platGrpOptions {get; set;}
+  public String selectedPlatGrp { get; set; }
+  
+  public map<string, set<String>> prodGrpOptionsMap;
+  
+  public List<SelectOption> browseOptions { get; private set; }{
+    browseOptions = new List<SelectOption>();
+    browseOptions.add(new SelectOption(SELECT_ONE, SELECT_ONE));
+    browseOptions.add(new SelectOption(COMP_FREQ, COMP_FREQ));
+    browseOptions.add(new SelectOption(MOST_FREQ, MOST_FREQ));
+    browseOptions.add(new SelectOption(SELECT_PROD, SELECT_PROD));
+  }
+    
+    private String soql {get;set;}
+    public boolean showhide{get;set;}
+    //safiya changes as part of CR-00136131
+    public boolean isCurrencyFormat{get;set;}
+    public Opportunity opp {get; set;}
+        
+    public List<productSearchWrapper> productWrap{get;set;}
+    public List<productSearchWrapper> productWrap3{get;set;}
+    
+    public list<productSearchWrapper.searchProductWrap> prod3{get; set;}
+
+    //Siva - Start
+    public List<productSearchWrapper> productWrap2{get;set;}   
+    //Siva - End   
+    public List<productSearchWrapper.addProduct> hybridProductWrap{get;set;}   
+
+    public List<productSearchWrapper.addProduct> serviceProductWrap{get;set;}    
+    public List<productSearchWrapper.addProduct> sddcProductWrap{get;set;}    
+    public  List<productSearchWrapper.addProduct> duphybridProductWrap{get;set;}    
+    public  List<productSearchWrapper.addProduct> dupserviceProductWrap{get;set;}     
+    public  List<productSearchWrapper.addProduct> dupsddcProductWrap{get;set;} 
+    
+    List<SelectOption> tempAssoctPlatformOpt {get; set;}
+    public string productType {get; set;}
+    public integer recordCounter {get; set;}
+    public integer recordSync {get; set;} //Add SFP-2013  
+    
+    public map<id, PriceBookEntry> priceBookMap;
+    
+    public integer SearchLimit;
+    public integer CompanyMostRecentLimit;
+    public integer MyMostRecentLimit;
+    public string usrLocale {get;set;}
+    
+    //Bhavesh SFP-37 starts
+    public boolean specialistUser{get;set;}
+    public boolean salesOps{get;set;}
+    public boolean reqSpecilaistRep{get;set;}
+    
+    User user1 = new User();
+   SF_User_Territory_Map__c SFUserTerritoryMaps = new SF_User_Territory_Map__c();
+    public  Set<String> PipelineProductGroups {get;set;}
+      //Bhavesh SFP-37 End
+    String MSORecordTypeId;
+  String TPRecordTypeId;
+    List<User> userRecords;//added as part of CR-0013849 by safiya mohammad    
+    //Added  : SF1 mobile Product Search  
+    //public static String prodSF1Name {get;set;}   
+    //Added By Prasenjeet For SaaS Sales Enablement 
+     public boolean CloudoptyRecotypechk {get; set;}
+     public boolean MSORecotypechk {get; set;}
+     public List<SelectOption> CldDatacenterRegion{get; set;}
+     public List<SelectOption> CldOpportunityType{get; set;}
+     public List<SelectOption> CldPaymentType{get; set;}
+     public List<SelectOption> CldServiceType{get; set;}
+    
+        public addOpportunityProductController(ApexPages.StandardController stdController) {
+           //Added By Prasenjeet For SaaS Sales Enablement 
+      CldDatacenterRegion = new List<SelectOption>();
+            CldOpportunityType = new List<SelectOption>();
+            CldPaymentType = new List<SelectOption>();
+            CldServiceType = new List<SelectOption>();
+            
+            //safiya changes as part of CR-00136131
+            MSORecordTypeId = Schema.SObjectType.Opportunity.getRecordTypeInfosByName().get('Managed Sales Opportunity').getRecordTypeId();       
+            TPRecordTypeId = Schema.SObjectType.Opportunity.getRecordTypeInfosByName().get('Targeted Possibility').getRecordTypeId(); //SNS Updates
+            isCurrencyFormat = false;
+            // End safiya changes as part of CR-00136131
+        opp = new opportunity();
+       usrLocale = UserInfo.getLocale();
+       
+       
+       //Bhavesh SPF- 37
+        /*user1 =  new User();        
+        user1 = [SELECT Id,Specialist_User__c,Sales_Ops__c FROM User WHERE Id = : UserInfo.getUserId()];
+        if(user1.Specialist_User__c !=Null){
+            specialistUser = true;
+        } 
+        if(user1.Sales_Ops__c == 'true'){
+            salesOps = true;
+        }
+       
+        if(user1.Specialist_User__c != null && user1.Specialist_User__c.contains('REP')){
+            reqSpecilaistRep= true;
+        }*/
+     List<SF_User_Territory_Map__c> sfUserTers = new List<SF_User_Territory_Map__c>();
+        sfUserTers  =  [SELECT Id,Pipeline_Product_Group__c FROM SF_User_Territory_Map__c WHERE User__c = : UserInfo.getUserId()];
+        PipelineProductGroups = new Set<String>();
+        for(SF_User_Territory_Map__c sfUserTer : sfUserTers){
+            PipelineProductGroups.add(sfUserTer.Pipeline_Product_Group__c);
+            
+        }
+        
+        
+        //Bhavesh End
+       //system.debug('user locale---'+usrLocale);
+       //CR-00124276 - 7June2015 - Dalia Pan - Added Rebate_Adjustment_Roll_Up__c field in the query.
+       //CR-00135498 - 29July2015 -Dalia Pan - Added RecordTypeID, StageName & Route_to_Market__c fields in the query.
+    string tempOppId = ((Opportunity)stdController.getRecord()).id;
+        opp = [select id, Pricebook2Id,CurrencyISOCode, Amount,NSX_Use_Case__c, Business_Line__c, closeDate,HasOpportunityLineItem, Show_Warning__c, Rebate_Adjustment_Roll_Up__c,RecordTypeID,StageName,Route_to_Market__c,CreatedDate from opportunity where id=:tempOppId];
+       //Added By Prasenjeet For SaaS Sales Enablement 
+        CloudoptyRecotypechk = (opp.RecordTypeID == Schema.SObjectType.Opportunity.getRecordTypeInfosByName().get('Cloud Opportunity').getRecordTypeId())? true:false ;
+        MSORecotypechk = (opp.RecordTypeID == Schema.SObjectType.Opportunity.getRecordTypeInfosByName().get('Managed Sales Opportunity').getRecordTypeId())? true:false ;
+        set<string> ExcludeServiceType = new set<string>();
+        set<string> ExcludeDatacenterRegion = new set<string>();
+        list<Cloud_Dependent_Picklist_Val__c> CloudPicklistVal = Cloud_Dependent_Picklist_Val__c.getAll().values();
+        boolean CheckCldOpportunityType =true;
+        boolean CheckPaymentType =true;
+        if(CloudoptyRecotypechk){ 
+            for(Cloud_Dependent_Picklist_Val__c CDPV :CloudPicklistVal){
+                if(CDPV.Datacenter_Region__c != null && !String.isBlank(CDPV.Datacenter_Region__c)){
+                    //CldDatacenterRegion.add(new SelectOption(CDPV.Datacenter_Region__c,CDPV.Datacenter_Region__c));
+                    ExcludeDatacenterRegion.add(CDPV.Datacenter_Region__c);
+                }
+                if(CDPV.Opportunity_Type__c != null && !String.isBlank(CDPV.Opportunity_Type__c)){
+                    if(CheckCldOpportunityType){
+                        CheckCldOpportunityType =false;
+                        CldOpportunityType.add(new SelectOption('','-None-'));
+                    }
+                    CldOpportunityType.add(new SelectOption(CDPV.Opportunity_Type__c,CDPV.Opportunity_Type__c));    
+                }
+                if(CDPV.Payment_Type__c != null && !String.isBlank(CDPV.Payment_Type__c)){
+                    if(CheckPaymentType){
+                        CheckPaymentType =false;
+                        CldPaymentType.add(new SelectOption('','-None-'));
+                    }
+                    CldPaymentType.add(new SelectOption(CDPV.Payment_Type__c,CDPV.Payment_Type__c));
+                    
+                }
+                if(CDPV.Service_Type__c != null && !String.isBlank(CDPV.Service_Type__c)){
+                    //CldServiceType.add(new SelectOption(CDPV.Service_Type__c,CDPV.Service_Type__c));
+                    ExcludeServiceType.add(CDPV.Service_Type__c);
+                }   
+            }
+        }
+        ///describe call value of data center and Service type
+            //List<SelectOption> Servicetypeoptions = new List<SelectOption>();
+            
+           Schema.DescribeFieldResult fieldResult1 =
+         OpportunityLineItem.Service_Type__c.getDescribe();
+           List<Schema.PicklistEntry> ple1 = fieldResult1.getPicklistValues();
+    
+           for( Schema.PicklistEntry f : ple1)
+           {
+              if(!ExcludeServiceType.contains(f.getValue())){
+                CldServiceType.add(new SelectOption(f.getLabel(), f.getValue()));
+              }
+           }  
+           
+           
+         Schema.DescribeFieldResult fieldResultDatacenterRegion =
+                 OpportunityLineItem.Datacenter_Region__c.getDescribe();
+                   List<Schema.PicklistEntry> pleDatacenterRegion = fieldResultDatacenterRegion.getPicklistValues();
+                
+                
+           for( Schema.PicklistEntry f : pleDatacenterRegion)
+           {
+                if(!ExcludeDatacenterRegion.contains(f.getValue())){
+                    CldDatacenterRegion.add(new SelectOption(f.getLabel(), f.getValue()));
+                }
+           }           
+        //End By Prasenjeet For SaaS Sales Enablement 
+        
+        //safiya changes as part of CR-00136131
+        if(opp.RecordTypeID == MSORecordTypeId || opp.RecordTypeID==TPRecordTypeId){    //added TPRecordTypeId for SNS Updates 
+            isCurrencyFormat = true;
+        }
+        // end safiya changes as part of CR-00136131    
+        //start Siva Adapa Changes as part of Sales forecasting
+        Datetime opptyCreatedateTime = opp.CreatedDate;  
+        Date opptyCreateddate = opptyCreatedateTime.Date();
+        Date myDate = Date.newInstance(2016, 10, 26);
+        if(opptyCreateddate > myDate){
+            isNewSddcSection = false;
+        }
+        else{
+            isNewSddcSection = true;
+        }
+        //end Siva Adapa Changes as part of Sales forecasting
+        
+    //changes by Bhuvaneshwari to hide browse for CBD oppty-PICO
+        
+        isCBD=true;//unhide the browse
+        CBDRecordTypeId= Schema.SObjectType.Opportunity.getRecordTypeInfosByName().get('PSO Credit Burndown Opportunity').getRecordTypeId(); 
+        //changes by Bhuvaneshwari to unhide the browse option-CR-00143285 -commented the code to hide the browse option
+       /* if(opp.RecordTypeID == CBDRecordTypeId){
+        isCBD=false; //hide the browse option if oppty is PSO CBD
+        }
+        //changes by Bhuvaneshwari to unhide the browse option-CR-00143285 
+        //changes end by Bhuvaneshwari-PICO
+        */
+        
+        /*commented as part of CR-00146239-start-Bhuvaneshwari
+        //changes by Bhuvaneshwari CR-00143285 
+        prdPlatfrm.add('Packaged Consulting');
+        prdPlatfrm.add('Custom Consulting');
+        prdPlatfrm.add('TAM');
+        prdPlatfrm.add('TRAINING CLASSES');
+        //changes by Bhuvaneshwari CR-00143285  
+        commented as part of CR-00146239-end -Bhuvaneshwari*/
+        if(CBO_Product_Visibility__c.getall().keyset()!=null)//changes as part of CR-00146239 -Bhuvaneshwari
+            prdPlatfrm.addall(CBO_Product_Visibility__c.getall().keyset());//changes as part of CR-00146239 -Bhuvaneshwari
+        
+       //added querry to fetch nsx user info as aprt of CR-00136849 by safiya mohammad
+        userRecords = [SELECT id,name FROM User WHERE Id = :UserInfo.getUserid() AND Is_NSX_User__c = true];
+        isEdit = false;
+       if(!showSave)
+           showSave = false;
+       productWrap = new List<productSearchWrapper>();
+       //Siva - Start
+       productWrap2 = new List<productSearchWrapper>();
+       productWrap3 = new List<productSearchWrapper>();
+       //Siva - End
+       
+       
+       SearchLimit = integer.valueOf(Vmware_Settings__c.getInstance('SearchLimit').Setvalue__c);
+       CompanyMostRecentLimit = integer.valueOf(Vmware_Settings__c.getInstance('CompanyMostRecentLimit').Setvalue__c);
+       MyMostRecentLimit = integer.valueOf(Vmware_Settings__c.getInstance('MyMostRecentLimit').Setvalue__c);
+ 
+        hybridProductWrap = new list<productSearchWrapper.addProduct>();
+       serviceProductWrap = new list<productSearchWrapper.addProduct>(); 
+       sddcProductWrap = new list<productSearchWrapper.addProduct>();
+       duphybridProductWrap = new list<productSearchWrapper.addProduct>();
+       dupserviceProductWrap = new list<productSearchWrapper.addProduct>(); 
+       dupsddcProductWrap = new list<productSearchWrapper.addProduct>();
+
+       platfrmGrpProdPlatformMap = new map<string, set<string>>();
+       prodGrpOptionsMap = new map<string, set<string>>();
+       selectProdGrop = false;
+       selectedProdGrp = '';
+       selectPlatform = false;
+       priceBookMap = new map<id, PriceBookEntry>(); 
+       prod3 = new list<productSearchWrapper.searchProductWrap>();
+       SFA_PRM_Price_book_setting__c custompricebook = SFA_PRM_Price_book_setting__c.getInstance('SFA PRM Price Book');
+       
+       tempAssoctPlatformOpt = new List<SelectOption>();
+       tempAssoctPlatformOpt.add(new SelectOption('','---None---'));
+       //assocPlatformSet = new set<string>();
+       
+       Map<string,string> assProPlatfrmMap = new Map<String,String>();
+       //CR-00143285 -Changes by Bhuvaneshwari for PICO Phase 2 
+        List<PriceBookEntry> prcBookList=new List<PriceBookEntry>();
+        if(custompricebook!=null && (String.isNotBlank(custompricebook.Price_Book_Id__c))){
+            if(opp.RecordTypeID == CBDRecordTypeId){
+                if(prdPlatfrm!=null && !prdPlatfrm.isEmpty()){
+                    prcBookList=[Select Name,Id, Pricebook2Id,Product2Id, Product2.Name, Product2.Product_Group__c, Product2.Division__c, Product2.Platform_Group__c, Product2.Product_Platform__c, Product2.Services__c, Product2.Hybrid_Cloud__c, Product2.Family,Product2.Pipeline_Product_Group__c from PriceBookEntry where IsActive = true AND Product2.IsSFA_PRM_Product__c =true AND CurrencyISOCode =: opp.CurrencyISOCode AND Pricebook2.IsActive = true AND Pricebook2Id =:  custompricebook.Price_Book_Id__c AND priceBook2.isStandard = false AND Product2.Product_Platform__c IN :prdPlatfrm order by Product2.Division__c];
+                }
+            }
+            else{
+                prcBookList=[Select Name,Id, Pricebook2Id,Product2Id, Product2.Name, Product2.Product_Group__c, Product2.Division__c, Product2.Platform_Group__c, Product2.Product_Platform__c, Product2.Services__c, Product2.Hybrid_Cloud__c, Product2.Family,Product2.Pipeline_Product_Group__c from PriceBookEntry where IsActive =: true AND Product2.IsSFA_PRM_Product__c =: true AND Product2.Platform_Group__c != '' AND  Product2.Product_Platform__c != '' AND CurrencyISOCode =: opp.CurrencyISOCode  AND Pricebook2.IsActive =: true AND Pricebook2Id =:  custompricebook.Price_Book_Id__c AND priceBook2.isStandard = false order by Product2.Division__c];
+
+            }
+        }
+        list<string> SplitCapture;
+        //Changes end by Bhuvaneshwari for CR-00143285 
+       for(PriceBookEntry prcBook :  prcBookList){
+           
+           
+           //
+           priceBookMap.put(prcBook.Id, prcBook);
+            set<string> tempProdPlatformSet = new set<string>();
+            //CR-00134775 Uma Change Begins
+            //  If(prcBook.PRODUCT2.PRODUCT_GROUP__C!=null && (prcBook.PRODUCT2.PRODUCT_GROUP__C.toUpperCase() == 'MOBILE' || prcBook.PRODUCT2.PRODUCT_GROUP__C.toUpperCase() == 'WORKSPACE SERVICES')  && (!validateProfileForAWProducts()))
+              If(prcBook.PRODUCT2.PRODUCT_GROUP__C!=null && checkForAWProducts(prcBook.PRODUCT2.PRODUCT_GROUP__C.toUpperCase()) && (!validateProfileForAWProducts(prcBook.PRODUCT2.PRODUCT_GROUP__C.toUpperCase())))
+              {
+                continue;
+              }    
+            //CR-00134775 Uma Change End
+            if(platfrmGrpProdPlatformMap != null && platfrmGrpProdPlatformMap.get(prcBook.Product2.Platform_Group__c) != null){
+                tempProdPlatformSet = platfrmGrpProdPlatformMap.get(prcBook.Product2.Platform_Group__c);
+                tempProdPlatformSet.add(prcBook.Product2.Product_Platform__c+';'+prcBook.Id);
+            }else if(prcBook.Product2.Platform_Group__c != ''){
+                tempProdPlatformSet = new set<string>();
+                tempProdPlatformSet.add(prcBook.Product2.Product_Platform__c+';'+prcBook.Id);
+            }
+            platfrmGrpProdPlatformMap.put(prcBook.Product2.Platform_Group__c,tempProdPlatformSet);
+            
+            set<string> tempProdPlatGrpSet = new set<string>();
+            if(prodGrpOptionsMap != null && prodGrpOptionsMap.get(prcBook.Product2.Product_Group__c) != null){
+                tempProdPlatGrpSet = prodGrpOptionsMap.get(prcBook.Product2.Product_Group__c);
+                tempProdPlatGrpSet.add(prcBook.Product2.Platform_Group__c);
+            }else if(prcBook.Product2.Platform_Group__c != ''){
+                tempProdPlatGrpSet = new set<string>();
+                tempProdPlatGrpSet.add(prcBook.Product2.Platform_Group__c);
+            }
+            // Modified below code  for CR-00135729
+              if(OnOffSwitch__c.getInstance('HybridCloudcheck')!=NULL && OnOffSwitch__c.getInstance('HybridCloudcheck').Active__c){
+                if(/*!prcBook.product2.Services__c && !prcBook.product2.Hybrid_Cloud__c &&*/ prcBook.product2.Platform_Group__c != null && prcBook.product2.Platform_Group__c != ''){
+                assProPlatfrmMap.put(prcBook.product2.Platform_Group__c,prcBook.product2.Platform_Group__c);
+                //system.debug('assProPlatfrmMap>>>'+assProPlatfrmMap.values());
+                //assocPlatformSet.add(prcBook.product2.Platform_Group__c);
+                //tempAssoctPlatformOpt.add(new SelectOption(optLineItem.product2.Platform_Group__c, optLineItem.product2.Platform_Group__c));
+                }
+            }
+            else if(!prcBook.product2.Services__c && !prcBook.product2.Hybrid_Cloud__c && prcBook.product2.Platform_Group__c != null && prcBook.product2.Platform_Group__c != ''){
+                assProPlatfrmMap.put(prcBook.product2.Platform_Group__c,prcBook.product2.Platform_Group__c);
+                
+                //assocPlatformSet.add(prcBook.product2.Platform_Group__c);
+                //tempAssoctPlatformOpt.add(new SelectOption(optLineItem.product2.Platform_Group__c, optLineItem.product2.Platform_Group__c));
+                
+            }
+
+
+            if(validateUserForRebate() && prcBook.Product2.Product_Platform__c == 'REBATE'){
+                    prodGrpOptionsMap.put(prcBook.Product2.Product_Group__c,tempProdPlatGrpSet);
+            }else if (prcBook.Product2.Product_Platform__c != 'REBATE'){
+                prodGrpOptionsMap.put(prcBook.Product2.Product_Group__c,tempProdPlatGrpSet);
+            }
+
+   
+       }
+       list<string> tempStrList = new list<String>();
+       tempStrList = assProPlatfrmMap.values();
+       tempStrList.sort();
+        for(string str : tempStrList){
+            tempAssoctPlatformOpt.add(new SelectOption(str, str));
+        }
+        
+       if(opp.RecordTypeID == CBDRecordTypeId){
+       populateAssosciatedPlatformCBOOppty();
+        }
+        
+        getOppLineItems();
+        queryAllMyCompany();
+        //tempAssoctPlatformOpt = new List<SelectOption>();
+        
+        //START - CR-00124276 - 7June2015 - Dalia Pan - Add Message after Flat Rebate is Applied. 
+            if(opp.Rebate_Adjustment_Roll_Up__c > 0.0){
+                RebateStatus = true;
+                Error = false;  
+            }   
+            if(RebateStatus == true && Error == false){
+                ApexPages.addmessage(new ApexPages.message(ApexPages.severity.Info,'Channel Neutrality rebate discount has been applied'));
+            }
+        //END - CR-00124276 - 7June2015 - Dalia Pan
+    }
+    //CR-00134490 - Uma change begins
+    /***********************************************************************************************
+    Method Name: getVMWProductline
+    Description: This method to populate VMWProductline__c on Opportunity object
+    @Param: None
+    @return: void
+    @throws: none
+    ***********************************************************************************************/
+    public void getVMWProductline()
+    {
+              String VMWProductlineStr1 = '';
+              //CR-00135238 Uma Change Begins
+              Decimal AWProductTotal=0;
+              //Decimal AWWorkspaceTotal =0;
+               //CR-00135238 Uma Change Ends
+                //CR-00124276 : Adding field Before_Rebate_Amount__c in the below query. 
+                //Add Prod_Specialist__r.Name :Bhavesh
+                for(OpportunityLineItem optLineItem1 : [select id,Prod_Specialist__r.Name, Amount__c, UnitPrice , Associated_Platform_Group__c,TotalPrice, SNS_Percent__c,Opportunity_Type__c,Payment_Type__c, Service_Type__c, Monthly_Revenue__c , of_Packs__c, Datacenter_Region__c, Data_load_service__c, Duration_Months__c, Quantity__c, SNS__c, SNS_Amount__c,  OpportunityId, PricebookEntryId, Product2Id, product2.Services__c, product2.Hybrid_Cloud__c, product2.Product_Group__c, product2.Platform_Group__c, product2.Product_Platform__c, Product2.Family, Product2.Pipeline_Product_Group__c,ACV_Amount__c,TCV_Amount__c,CSP_Order_ID__c,Before_Rebate_Amount__c,VMStar_Category__c,VMStar_Product_Link_Id__c,Service_ID__c from OpportunityLineItem where OpportunityId =:opp.Id ])
+                {
+                 // If (optLineItem1.product2.Product_Group__c!=null && ((optLineItem1.product2.Product_Group__c.toUpperCase() == 'MOBILE') || (optLineItem1.product2.Product_Group__c.toUpperCase() == 'WORKSPACE SERVICES')))
+                    If (optLineItem1.product2.Product_Group__c!=null && checkForAWProducts(optLineItem1.product2.Product_Group__c.toUpperCase()))
+                    {
+                    VMWProductlineStr1 = VMWProductlineStr1 + optLineItem1.product2.Platform_Group__c+','+ optLineItem1.product2.Product_Platform__c + ','+ optLineItem1.Quantity__c + ',' + optLineItem1.Amount__c + ',' + optLineItem1.SNS__c + ',' + optLineItem1.SNS_Percent__c + ',' + optLineItem1.SNS_Amount__c + ',' + optLineItem1.of_Packs__c + ',' + optLineItem1.TotalPrice + ';' ;
+                    Decimal LicensePercentage=0;
+                    Decimal SNSPercentage = 0;
+                    AW_Products_After_Rebate_Percentages__c awpda = AW_Products_After_Rebate_Percentages__c.getInstance(optLineItem1.product2.Product_Group__c.toUpperCase());
+          if(awpda.License_Percent__c != null){
+            LicensePercentage = awpda.License_Percent__c;
+          }
+                    if(awpda.SNS_Percent__c != null){
+            SNSPercentage = awpda.SNS_Percent__c;
+          }
+          if(optLineItem1.Amount__c == null){
+            optLineItem1.Amount__c = 0;
+          }
+          if(optLineItem1.SNS_Amount__c == null){
+            optLineItem1.SNS_Amount__c = 0;
+          }
+                    AWProductTotal = AWProductTotal + (((optLineItem1.Amount__c * LicensePercentage)+(optLineItem1.SNS_Amount__c * SNSPercentage))/100);
+                    }
+               
+                 //CR-00135238 Uma Change Ends    
+                    }
+         
+                  try {
+                     Opportunity oppr1 = [ SELECT Id, VMWProductLine__c, AW_Product_Total__c FROM Opportunity WHERE Id = :opp.Id ];  
+                     // Follwing if condition to skip the update if both are empty
+                      If (( VMWProductlineStr1 == '' || VMWProductlineStr1 == null) && (Oppr1.VMWProductLine__c == '' || Oppr1.VMWProductLine__c == null))
+                      {System.debug(' There is no change in Airwatch product line and no need to update VMWProductline__c field');}
+                      else if (Oppr1!=null && Oppr1.VMWProductLine__c != VMWProductlineStr1) // This condition to skip the update opty if there is no change in the Airwatch products
+                      {
+                      Oppr1.VMWProductLine__c = VMWProductlineStr1;
+                      //CR-00135238 Uma Change Begins
+                      Oppr1.AW_Product_Total__c = AWProductTotal;
+                      //CR-00135238 Uma Change Ends
+                      update oppr1;
+                      //System.debug(' Uma - This display to check the update not happened if there is no change in Airwatch products');
+                      }
+                      }
+                      catch(Exception e){
+                                 String errorresult1 = 'errorMessage: ' + e.getDmlMessage(0);
+                                  CreateApexErrorLog.insertHandledExceptions(e, null, null, null, 'ApexClass', 'addOpportunityProductController', 'getVMWProductline');   
+                      }
+    }
+   
+   //CR-00134490 - Uma change ends 
+   // public set<string> assocPlatformSet;
+    
+    public  void getOppLineItems(){
+        List<SelectOption> tempproductPlatformOpt = new List<SelectOption>();
+        //tempAssoctPlatformOpt = new List<SelectOption>();
+        //tempAssoctPlatformOpt.add(new SelectOption('','---None---'));
+        //assocPlatformSet = new set<string>();
+        integer hybridCount = 0;
+        integer servCount = 0;
+        integer sddcCount = 0;
+        //CR-00128044 : Adding fields ACV_Amount__c & TCV_Amount__c in the below query. 
+        //CR-00124276 : Adding field Before_Rebate_Amount__c 
+        //Siva Adapa: Added VMStar_Product_Link_Id__c, Opp_Line_Item_Serial_Number__c, ByPass_Trigger__c field and Sorting order
+        //SFP-36: Added Prod_Specialist__r.Name in the query
+        //By Prasenjeet added Service_Start_Date__c for SAAS Enablement
+        
+        Map<String,Cloud_Platform_Group__c> CloudPicklistDepVal = Cloud_Platform_Group__c.getAll();
+        list<string> Holder;
+        list<SelectOption> CldServiceTypeWrap;
+        list<SelectOption> CldDatacenterRegionWrap;
+          //Bhavesh SFP-37 starts
+        for(OpportunityLineItem optLineItem : [select id, Prod_Specialist__r.Name, Amount__c,UnitPrice , Associated_Platform_Group__c,TotalPrice, SNS_Percent__c,Opportunity_Type__c,Payment_Type__c, Service_Type__c, Monthly_Revenue__c , of_Packs__c, Datacenter_Region__c, Data_load_service__c, Duration_Months__c, Quantity__c, SNS__c, SNS_Amount__c,  OpportunityId, PricebookEntryId, Product2Id, product2.Services__c, product2.Hybrid_Cloud__c, product2.Platform_Group__c, product2.Product_Platform__c,Product2.Pipeline_Product_Group__c, Product2.Family, ACV_Amount__c,TCV_Amount__c,CSP_Order_ID__c, Before_Rebate_Amount__c,Specialist_Amount__c,SyncProduct__c,VMStar_Category__c,VMStar_Product_Link_Id__c,ByPass_Trigger__c,Service_Start_Date__c,Service_ID__c from OpportunityLineItem where OpportunityId =:opp.Id  order by VMStar_Product_Link_Id__c ASC NULLS LAST, VMStar_Category__c ASC, CreatedDate ASC]){
+           
+            
+        tempproductPlatformOpt = new List<SelectOption>();
+            if(optLineItem.product2.Platform_Group__c != null && optLineItem.product2.Platform_Group__c != '' && platfrmGrpProdPlatformMap.get(optLineItem.product2.Platform_Group__c) != null){
+                for(string str : platfrmGrpProdPlatformMap.get(optLineItem.product2.Platform_Group__c)){
+                    if(str.contains(';')){
+                        tempproductPlatformOpt.add(new SelectOption(str.split(';')[1], str.split(';')[0])); 
+                    }
+                }
+                /*
+                if(!optLineItem.product2.Services__c && !optLineItem.product2.Hybrid_Cloud__c && optLineItem.product2.Platform_Group__c != null && optLineItem.product2.Platform_Group__c != ''  && !assocPlatformSet.contains(optLineItem.product2.Platform_Group__c)){
+                      assocPlatformSet.add(optLineItem.product2.Platform_Group__c);
+                      tempAssoctPlatformOpt.add(new SelectOption(optLineItem.product2.Platform_Group__c, optLineItem.product2.Platform_Group__c));
+                }
+                */
+            }
+            productSearchWrapper.addProduct tempAddProd = new productSearchWrapper.addProduct(optLineItem);
+            tempAddProd.productPlatformOpt = tempproductPlatformOpt;
+            
+            if(optLineItem.product2.Hybrid_Cloud__c){
+                tempAddProd.Counter = hybridCount;
+                tempAddProd.prodType = 'Hybrid';
+                
+        //Added By Prasenjeet For SaaS Sales Enablement                
+                if(MSORecotypechk || CloudoptyRecotypechk ){
+                        CldServiceTypeWrap = new list<SelectOption>();
+                        CldDatacenterRegionWrap = new list<SelectOption>();
+                        
+                            for(string Platformgroupconfig: CloudPicklistDepVal.Keyset()){
+                            
+                if((tempAddProd.Product2platform != null && tempAddProd.Product2platform.EqualsIgnoreCase(Platformgroupconfig)) || (tempAddProd.platformGroup != null && tempAddProd.platformGroup.EqualsIgnoreCase(Platformgroupconfig))){
+                                       //system.debug('Platformgroupconfig@#@$@#$@Platformgroupconfig'+Platformgroupconfig);
+                                    if(CloudoptyRecotypechk){
+                                           if(CloudPicklistDepVal.get(Platformgroupconfig).Service_Type__c != null){
+                                              CldServiceTypeWrap.add(new SelectOption('','-None-'));
+                                              Holder =new list<string>();
+                                              Holder = CloudPicklistDepVal.get(Platformgroupconfig).Service_Type__c.split(';');
+                                                for(String Val : Holder){
+                                                CldServiceTypeWrap.add(new SelectOption(Val,Val));
+                                                }
+                                            }   
+                                    }  
+                                   
+                                    if(CloudPicklistDepVal.get(Platformgroupconfig).Datacenter_Region__c != null){
+                                         CldDatacenterRegionWrap.add(new SelectOption('','-None-'));
+                                          Holder =new list<string>();
+                                          Holder = CloudPicklistDepVal.get(Platformgroupconfig).Datacenter_Region__c.split(';');
+                                            for(String Val : Holder){
+                                            CldDatacenterRegionWrap.add(new SelectOption(Val,Val));
+                                            }
+                                    }
+                                }
+                            }
+                            if(CloudoptyRecotypechk){
+                                if(CldServiceTypeWrap.isEmpty()){ 
+                                    CldServiceTypeWrap = CldServiceType;    
+                                }
+                            }
+
+                            if(CldDatacenterRegionWrap.isEmpty()){
+                                    CldDatacenterRegionWrap = CldDatacenterRegion;  
+                            }
+                                   
+                    tempAddProd.MapdependentServiceTypeAndDatacenterRegion(CldDatacenterRegionWrap,CldServiceTypeWrap);        
+                }
+                
+           //End By Prasenjeet For SaaS Sales Enablement      
+                
+               duphybridProductWrap.add(tempAddProd);
+               hybridProductWrap.add(tempAddProd); 
+               hybridCount ++;
+            }else if(optLineItem.product2.Services__c){
+               tempAddProd.Counter = servCount;
+               tempAddProd.prodType = 'Service';
+               tempAddProd.associatedPlatformOp = tempAssoctPlatformOpt;
+               dupserviceProductWrap.add(tempAddProd);
+               serviceProductWrap.add(tempAddProd);  
+               servCount ++;
+            }else 
+            {
+               tempAddProd.Counter = sddcCount;
+               tempAddProd.prodType = 'SDDC';
+               dupsddcProductWrap.add(tempAddProd);
+               sddcProductWrap.add(tempAddProd); 
+               sddcCount ++;              
+            }
+        }
+        //serviceProductWrap.clear();
+        //for(productSearchWrapper.addProduct prodwrap : dupserviceProductWrap){
+        //    prodwrap.associatedPlatformOp = tempAssoctPlatformOpt;
+        //    serviceProductWrap.add(prodwrap);
+        //}
+    }
+    
+    public addOpportunityProductController(){
+       productWrap = new List<productSearchWrapper>();
+       hybridProductWrap = new list<productSearchWrapper.addProduct>();
+       serviceProductWrap = new list<productSearchWrapper.addProduct>(); 
+       sddcProductWrap = new list<productSearchWrapper.addProduct>();
+       
+       //system.debug('# opp  : '+opp );
+       showhide = false;
+       showSDDC = false;
+       showServices = false;
+       showHybrid = false;
+    }
+    
+    public PageReference selectPlatformGrp(){
+        selectPlatform = true;
+        platGrpOptions = new List<SelectOption>();
+        productWrap3.clear();
+        platGrpOptions.add(new SelectOption('---None---', '---None---'));
+        if(selectedProdGrp != '' && selectedProdGrp != null && prodGrpOptionsMap.get(selectedProdGrp) != null){
+                for(String platformGrp: prodGrpOptionsMap.get(selectedProdGrp)){
+                    platGrpOptions.add(new SelectOption(platformGrp, platformGrp)); 
+                }
+         }
+    
+    return null;
+    }
+
+    public PageReference deleteProduct(){
+       string count = ApexPages.CurrentPage().getParameters().get('recordCounter');
+       if(count != null && count != '')
+           recordCounter = integer.valueOf(count);
+       productType= ApexPages.CurrentPage().getParameters().get('productType');
+       
+       list<OpportunityLineItem> opplineItemDelList = new list<OpportunityLineItem>();
+       
+       set<string> deletedPlatfrmGrpSet = new set<string>();
+       integer i = 0;
+       if(recordCounter != null){
+           //system.debug('# sddcProductWrap : '+sddcProductWrap);
+           //system.debug('# recordCounter : '+recordCounter);
+           if(productType != null && productType == 'SDDC'){
+               // productSearchWrapper.addProduct tempProdWrap = sddcProductWrap.get(recordCounter);
+              productSearchWrapper.addProduct tempProdWrap;
+               for(productSearchWrapper.addProduct prodwrp : sddcProductWrap){
+                    if(prodwrp.Counter == recordCounter){
+                        tempProdWrap = prodwrp;
+                        break;
+                    }else
+                        i++;
+               }
+              // sddcProductWrap.remove(recordCounter);
+              // dupsddcProductWrap.remove(recordCounter);
+                if(tempProdWrap.oppLineItem != null && tempProdWrap.oppLineItem.Id != null){
+                    
+                   opplineItemDelList.add(tempProdWrap.oppLineItem);
+         
+                   //Siva Adapa - Salesforecasting Automation changes Start
+                   if(tempProdWrap.productFamily == System.Label.License_Label && tempProdWrap.oppLineItem.VMStar_Product_Link_Id__c != null){ 
+                        for(productSearchWrapper.addProduct snsprodwrp : sddcProductWrap){
+                            
+                            if(tempProdWrap.oppLineItem.VMStar_Product_Link_Id__c == snsprodwrp.oppLineItem.VMStar_Product_Link_Id__c &&
+                                    snsprodwrp.oppLineItem.product2.Family == System.Label.SNS_Label){
+                                
+                                opplineItemDelList.add(snsprodwrp.oppLineItem);
+                                break;
+                            }
+                        }
+                    }
+                   //Siva Adapa - Salesforecasting Automation changes End
+                }
+               
+           }
+               
+           if(productType != null && productType == 'Hybrid'){
+               //productSearchWrapper.addProduct tempProdWrap = hybridProductWrap.get(recordCounter);
+               productSearchWrapper.addProduct tempProdWrap;
+               for(productSearchWrapper.addProduct prodwrp : hybridProductWrap){
+                    if(prodwrp.Counter == recordCounter){
+                        tempProdWrap = prodwrp;
+                        break;
+                    }else
+                        i++;
+               }
+              // hybridProductWrap.remove(recordCounter);
+              // duphybridProductWrap.remove(recordCounter);
+               if(tempProdWrap.oppLineItem != null && tempProdWrap.oppLineItem.Id != null){
+                   opplineItemDelList.add(tempProdWrap.oppLineItem);
+               }
+           }
+           
+           if(productType != null && productType == 'Service'){
+               //productSearchWrapper.addProduct tempProdWrap = serviceProductWrap.get(recordCounter);
+               productSearchWrapper.addProduct tempProdWrap;
+               for(productSearchWrapper.addProduct prodwrp : serviceProductWrap){
+                    if(prodwrp.Counter == recordCounter){
+                        tempProdWrap = prodwrp;
+                        break;
+                    }else
+                        i++;
+               }
+              // serviceProductWrap.remove(recordCounter);
+              // dupserviceProductWrap.remove(recordCounter);
+               if(tempProdWrap != null && tempProdWrap.oppLineItem != null && tempProdWrap.oppLineItem.Id != null){
+                   opplineItemDelList.add(tempProdWrap.oppLineItem);
+               }
+           }
+           
+        
+           
+           try{
+                string profileName = [Select name from Profile where Id =:userinfo.getProfileId()].name;
+           if(opp.closeDate < system.today() && profileName != 'EMEA Sales Operations' && profileName != 'APJ Sales Operations' && profileName != 'AMER Sales Operations' && ProfileName != 'ISC (Partner Administration)' && ProfileName != 'ISC (Partner Administration) - Temp' ){
+                    ApexPages.addmessage(new ApexPages.message(ApexPages.severity.ERROR,'Expected Close Date cannot be a Past Date.'));
+                    error = true;
+                    return null;
+           }else{
+
+
+
+
+
+
+            delete opplineItemDelList;
+            // Added for CR-00116008 - Start
+            update opp;
+            // Added for CR-00116008 - End
+            // After updating the Opportunity, call a future method to update the Opportunity Splits
+            AddOpportunityOverlaySplit.OpptyOverlaySplitUpdate(new Set<Id>{opp.Id});
+            //list<SelectOption> tempAssPltGrpOpt = new list<SelectOption>();
+            if(productType != null && productType == 'SDDC'){
+                
+                //Siva Adapa - Salesforecasting Automation changes Start
+                if( sddcProductWrap[i].productFamily == System.Label.License_Label && sddcProductWrap[i].oppLineItem.VMStar_Product_Link_Id__c != null){
+                    //Removing License and related SNS Product lines
+                    
+                    String vmStarProductLinkId = sddcProductWrap[i].oppLineItem.VMStar_Product_Link_Id__c;
+                    
+                    List<productSearchWrapper.addProduct> tempProductWrap = new List<productSearchWrapper.addProduct>();
+                    for(productSearchWrapper.addProduct productWrap : sddcProductWrap){
+                        if( productWrap.oppLineItem.VMStar_Product_Link_Id__c != vmStarProductLinkId &&
+                            productWrap != sddcProductWrap[i] ){
+                            tempProductWrap.add(productWrap);
+                        }
+                    }
+                    sddcProductWrap.clear();
+                    sddcProductWrap.addAll( tempProductWrap );
+                    
+                } else
+                //Siva Adapa - Salesforecasting Automation changes End
+         
+                sddcProductWrap.remove(i);
+              //  assocPlatformSet.clear();
+             /*  for(SelectOption opt : tempAssoctPlatformOpt){
+                    if(opt.getValue() != sddcProductWrap.get(recordCounter).platformGroup){
+                        tempAssPltGrpOpt.add(opt);
+                    }
+               }
+               sddcProductWrap.remove(i);
+               tempAssPltGrpOpt.add(new SelectOption('---None---',''));
+               for(productSearchWrapper.addProduct sddcprodwrap : sddcProductWrap){
+                    if(!assocPlatformSet.contains(sddcprodwrap.platformGroup)){
+                        assocPlatformSet.add(sddcprodwrap.platformGroup);
+                        tempAssPltGrpOpt.add(new SelectOption(sddcprodwrap.platformGroup,sddcprodwrap.platformGroup));
+                    }
+               }
+              // dupsddcProductWrap.remove(recordCounter);
+               //system.debug('# tempAssPltGrpOpt : '+tempAssPltGrpOpt);
+               for(productSearchWrapper.addProduct serprodwrap : serviceProductWrap){
+                    serprodwrap.associatedPlatformOp = tempAssPltGrpOpt;
+               }
+               */
+            }
+            if(productType != null && productType == 'Hybrid'){
+               hybridProductWrap.remove(i);
+              // duphybridProductWrap.remove(recordCounter);
+            }
+            if(productType != null && productType == 'Service'){
+               serviceProductWrap.remove(i);
+               
+               //dupserviceProductWrap.remove(recordCounter);
+            }
+            if(!isEdit){
+                isSuccess = true;
+            }
+            }
+
+           }catch(exception ex){
+            system.debug('# ex : '+ex);
+                String errorMsg='You cannot delete the last product for the opportunity. To delete this product you must add another product first.';
+                String newErrorMsg=' ';       
+                if(ex.getmessage().contains(errorMsg)){   
+                    system.debug('# exx : '+ex);
+                    ApexPages.addmessage(new ApexPages.message(ApexPages.severity.ERROR,errorMsg));
+                    error = true;
+                    return null;
+                }
+        
+                return null;
+           }
+           
+       }
+        return null;
+    }
+
+    //Add SFP-2013 :start
+     public PageReference syncProductAmount(){
+       string count = ApexPages.CurrentPage().getParameters().get('recordCounter');
+       if(count != null && count != '')
+           recordCounter = integer.valueOf(count);
+       productType= ApexPages.CurrentPage().getParameters().get('productType');
+       String OpptyId = ApexPages.CurrentPage().getParameters().get('Id');
+       
+       list<OpportunityLineItem> opplineItemSynList = new list<OpportunityLineItem>();
+
+       integer i = 0;
+       if(recordCounter != null){
+           if(productType != null && productType == 'SDDC'){
+              productSearchWrapper.addProduct tempProdWrap;
+               for(productSearchWrapper.addProduct prodwrp : sddcProductWrap){
+                    if(prodwrp.Counter == recordCounter){
+                        tempProdWrap = prodwrp;
+                        break;
+                    }else
+                        i++;
+               }
+              
+                opplineItemSynList = [Select id,VMStar_Product_Link_Id__c,Specialist_SNS_Amount__c,SNS_Amount__c,SyncProduct__c,Specialist_Amount__c,Amount__c from OpportunityLineItem where VMStar_Product_Link_Id__c =:tempProdWrap.oppLineItem.VMStar_Product_Link_Id__c and VMStar_Category__c =: System.Label.SNS_Label and OpportunityId=:OpptyId];
+             
+               if(opplineItemSynList.size()>0) {
+                   
+               opplineItemSynList[0].Specialist_Amount__c = opplineItemSynList[0].Amount__c;
+               opplineItemSynList[0].Specialist_SNS_Amount__c = opplineItemSynList[0].SNS_Amount__c;
+               opplineItemSynList[0].SyncProduct__c = false;
+               }
+              
+                if(tempProdWrap.oppLineItem != null && tempProdWrap.oppLineItem.Id != null){
+                   if(tempProdWrap.productFamily == System.Label.License_Label && tempProdWrap.oppLineItem.VMStar_Product_Link_Id__c != null){ 
+                                    tempProdWrap.oppLineItem.Specialist_Amount__c = tempProdWrap.oppLineItem.Amount__c ;  
+                                    tempProdWrap.oppLineItem.Specialist_SNS_Amount__c = tempProdWrap.oppLineItem.SNS_Amount__c ; 
+                                     tempProdWrap.oppLineItem.SyncProduct__c = false ; 
+                                opplineItemSynList.add(tempProdWrap.oppLineItem);
+                            }
+                        }
+                   }
+            if(productType != null && productType == 'Hybrid'){
+               productSearchWrapper.addProduct tempProdWrap;
+               for(productSearchWrapper.addProduct prodwrp : hybridProductWrap){
+                    if(prodwrp.Counter == recordCounter){
+                        tempProdWrap = prodwrp;
+                        break;
+                    }else
+                        i++;
+               }
+               if(tempProdWrap.oppLineItem != null && tempProdWrap.oppLineItem.Id != null){
+                   tempProdWrap.oppLineItem.Specialist_Amount__c = tempProdWrap.oppLineItem.ACV_Amount__c ;
+                    tempProdWrap.oppLineItem.SyncProduct__c = false ;                  
+                   opplineItemSynList.add(tempProdWrap.oppLineItem);
+               }
+           }
+           
+           if(productType != null && productType == 'Service'){
+               productSearchWrapper.addProduct tempProdWrap;
+               for(productSearchWrapper.addProduct prodwrp : serviceProductWrap){
+                    if(prodwrp.Counter == recordCounter){
+                        tempProdWrap = prodwrp;
+                        break;
+                    }else
+                        i++;
+               }
+               if(tempProdWrap != null && tempProdWrap.oppLineItem != null && tempProdWrap.oppLineItem.Id != null){
+                   tempProdWrap.oppLineItem.Specialist_Amount__c = tempProdWrap.oppLineItem.TotalPrice ; 
+                   tempProdWrap.oppLineItem.SyncProduct__c = false ; 
+                   opplineItemSynList.add(tempProdWrap.oppLineItem);
+               }
+           }           
+                try{
+            /*string profileName = [Select name from Profile where Id =:userinfo.getProfileId()].name;
+           if(opp.closeDate < system.today() && profileName != 'EMEA Sales Operations' && profileName != 'APJ Sales Operations' && profileName != 'AMER Sales Operations' && ProfileName != 'ISC (Partner Administration)' && ProfileName != 'ISC (Partner Administration) - Temp' ){
+                    ApexPages.addmessage(new ApexPages.message(ApexPages.severity.ERROR,'Expected Close Date cannot be a Past Date.'));
+                    error = true;
+                    return null;
+           }else{*/
+            update opplineItemSynList;
+            //update opp;
+         // AddOpportunityOverlaySplit.OpptyOverlaySplitUpdate(new Set<Id>{opp.Id});
+            /*if(productType != null && productType == 'SDDC'){
+                if( sddcProductWrap[i].productFamily == System.Label.License_Label && sddcProductWrap[i].oppLineItem.VMStar_Product_Link_Id__c != null){
+                    String vmStarProductLinkId = sddcProductWrap[i].oppLineItem.VMStar_Product_Link_Id__c;
+                    
+                    List<productSearchWrapper.addProduct> tempProductWrap = new List<productSearchWrapper.addProduct>();
+                    for(productSearchWrapper.addProduct productWrap : sddcProductWrap){
+                        if( productWrap.oppLineItem.VMStar_Product_Link_Id__c != vmStarProductLinkId &&
+                            productWrap != sddcProductWrap[i] ){
+                            tempProductWrap.add(productWrap);
+                        }
+                    }
+                    sddcProductWrap.addAll( tempProductWrap );
+                    
+                } 
+            }
+
+           }*/
+           }catch(exception ex){
+            system.debug('# ex : '+ex);
+                ApexPages.addmessage(new ApexPages.message(ApexPages.severity.ERROR,ex.getMessage()));
+        
+                return null;
+           }
+           
+       }
+        return null;
+    }
+    //Add SFP-2013  End
+    public PageReference selectProduct(){
+    productWrap3 = new list<productSearchWrapper>();
+    set<string> tempProductPlatform = new set<string>();
+    if(selectedPlatGrp != null && selectedPlatGrp != '' && platfrmGrpProdPlatformMap.get(selectedPlatGrp) != null){
+        tempProductPlatform =  platfrmGrpProdPlatformMap.get(selectedPlatGrp);
+        for(string str : tempProductPlatform){
+            if(str.contains(';') && pricebookMap.get(str.split(';')[1]) != null){
+                productSearchWrapper prodwrap = new productSearchWrapper(pricebookMap.get(str.split(';')[1]),tempProductPlatform);
+                productWrap3.add(prodwrap);
+            }
+        }
+    
+    }
+    return null;
+    }
+    
+    
+   
+   
+    
+    
+    public PageReference cancelAddition(){
+      error = false;
+
+      pageReference pg = Page.addOpportunityProduct;
+      pg.getParameters().put('id',opp.Id);
+      pg.setRedirect(true);
+      return pg;
+    }
+  
+    public static decimal calcSNSAmt(OpportunityLineItem oppLineItem){
+        decimal snsAmt =0;
+        if(oppLineItem != null && oppLineItem.Amount__c != null && oppLineItem.SNS__c == 'Other')
+        {
+            snsAmt = oppLineItem.SNS_Amount__c;
+        }    
+        else if(oppLineItem != null && oppLineItem.SNS_Percent__c != null && oppLineItem.Amount__c != null && oppLineItem.SNS__c != '' && oppLineItem.SNS__c != null)
+        {
+            snsAmt = oppLineItem.SNS_Amount__c; //Added CR-00115997 
+            //snsAmt = oppLineItem.SNS_Percent__c/100 * oppLineItem.Amount__c * decimal.valueOf(oppLineItem.SNS__c.substring(0,1));  //Commented CR-00115997 
+        }
+        return snsAmt;
+    }
+                        
+    public static decimal totalLineAmt(OpportunityLineItem oppLineItem){
+        decimal lineAmt =0;
+        // Siva Adapa : Sales Forecasting Automation changes Start
+        if(oppLineItem != null && oppLineItem.Product2.Family== System.Label.SNS_Label){
+            
+            if(oppLineItem.Amount__c != null && oppLineItem.Amount__c != 0.00 ){
+            if(oppLineItem.SNS_Percent__c == null){
+                oppLineItem.SNS_Percent__c = 0.00;
+            }
+            
+            if(oppLineItem.SNS_Amount__c!=null){
+                lineAmt = oppLineItem.SNS_Amount__c;
+            }else{
+                oppLineItem.SNS_Amount__c = 0.00;
+                lineAmt = oppLineItem.Amount__c;
+            }
+            }
+        }
+        // Siva Adapa : Sales Forecasting Automation changes End
+        else
+            //START : CR-00135287 : Changes to get Before Rebate Amount on UI
+        if(oppLineItem != null && (oppLineItem.Before_Rebate_Amount__c != null && oppLineItem.Before_Rebate_Amount__c != 0.00)){
+            
+                if(oppLineItem.SNS_Percent__c == null){
+                oppLineItem.SNS_Percent__c = 0.00;
+            }
+            
+            if(oppLineItem.SNS_Amount__c!=null){
+                if(oppLineItem.Product2.Family==System.Label.License_Label){ //Nierrbhayy added condition for SF-3219
+                    lineAmt = oppLineItem.Before_Rebate_Amount__c;
+                }else{
+                    lineAmt = oppLineItem.Before_Rebate_Amount__c  + oppLineItem.SNS_Amount__c;
+                }
+            }else{
+                oppLineItem.SNS_Amount__c = 0.00;
+                lineAmt = oppLineItem.Before_Rebate_Amount__c;
+            }
+
+        }
+        else 
+        //END : CR-00135287 : Changes to get Before Rebate Amount on UI
+        if(oppLineItem != null && (oppLineItem.Amount__c != null && oppLineItem.Amount__c != 0.00)){
+            
+        if(oppLineItem.SNS_Percent__c == null){
+                oppLineItem.SNS_Percent__c = 0.00;
+            }
+            
+            if(oppLineItem.SNS_Amount__c!=null){
+                lineAmt = oppLineItem.Amount__c  + oppLineItem.SNS_Amount__c;
+            }else{
+                oppLineItem.SNS_Amount__c = 0.00;
+                lineAmt = oppLineItem.Amount__c;
+            }
+
+        } 
+        return lineAmt;
+    }
+    
+    public PageReference editProduct(){
+       isEdit = true;
+       specielistEdit = true;
+        
+       isEditLicense = false; //Added by Siva Adapa Sales Forecasting
+       return null;
+    }
+  
+
+ public PageReference saveProduct() 
+ {
+         List<String> lstErrorMessages = new List<String>();               
+ 
+        if(isEdit){
+            
+            if(specielistEdit==true){
+                specielistFlag=true;
+                
+            }
+       
+            //Start - CR-00136197 : Allow saving Products only for few proiles(ProfileNameSetting__c) when expected close date is a past date.
+            List<ProfileNameSetting__c> profileNamesList = ProfileNameSetting__c.getAll().values();
+            set<String> profileIdSet = new Set<string>();
+            if(!profileNamesList.isEmpty()){
+                 for(ProfileNameSetting__c p : profileNamesList){
+                profileIdSet.add(p.Profile_ID__c);
+                }
+            }
+           
+            //string profileName = [Select name from Profile where Id =:userinfo.getProfileId()].name;
+            if(opp.closeDate < system.today() && (!profileIdSet.isEmpty()) && (!(profileIdSet.contains(userinfo.getProfileId()))) && opp.HasOpportunityLineItem && OnOffSwitch__c.getInstance('addOpportunityProductControllerError') != NULL && (OnOffSwitch__c.getInstance('addOpportunityProductControllerError').Active__c)){
+                ApexPages.addmessage(new ApexPages.message(ApexPages.severity.ERROR,'Change the Expected Closed Date to future date before adding the products. Products will not be saved, if the date is not changed.'));
+                return null;
+            }
+            else
+            {
+            //End - CR-00136197  
+                boolean isValid = false; 
+                error = false;
+        
+                list<OpportunityLineItem> oppLineItemInsertList = new list<OpportunityLineItem>();
+                list<OpportunityLineItem> oppLineItemUpdateList = new list<OpportunityLineItem>();
+                list<OpportunityLineItem> oppLineItemDeleteList = new list<OpportunityLineItem>();
+          
+                OpportunityLineItem tempOppLineItem = new OpportunityLineItem();
+
+                for(productSearchWrapper.addProduct addProd :  hybridProductWrap)
+                {
+                    tempOppLineItem = new OpportunityLineItem();
+                    tempOppLineItem =addProd.oppLineItem;
+                    if(tempOppLineItem.Service_ID__c == null && OPPTYPES.contains(tempOppLineItem.Opportunity_Type__c)){
+                        ApexPages.addMessage(new ApexPages.Message(ApexPages.Severity.ERROR,'Service ID should be required.')); 
+                        return null; 
+                        break;
+                    }
+                    if(tempOppLineItem.Quantity__c == null){
+                        ApexPages.addMessage(new ApexPages.Message(ApexPages.Severity.ERROR,'Quantity should be required.')); 
+                        return null; 
+                        break;
+                    }
+                    if(tempOppLineItem.Duration_Months__c == null){
+                        ApexPages.addMessage(new ApexPages.Message(ApexPages.Severity.ERROR,'Duration Months should be required.')); 
+                        return null; 
+                        break;
+                    }
+                    if(tempOppLineItem.Monthly_Revenue__c == null){
+                        ApexPages.addMessage(new ApexPages.Message(ApexPages.Severity.ERROR,'Monthly Revenue should be required.')); 
+                        return null; 
+                        break;
+                    }
+                    
+                    if(addProd.oppLineItem.Id == null){
+                        tempOppLineItem.PriceBookEntryId = id.valueOf(addProd.productPlatform);
+                        tempOppLineItem.Quantity = 1;
+                        //Start - CR-00128044 : Saving Amount for Subscription products as ACV_Amount__c, TCV_Amount__c & ACV_Amount__c     
+                        //tempOppLineItem.Amount__c = addProd.oppLineItem.UnitPrice; // Added Amount field for CR-00104673
+                        tempOppLineItem.ACV_Amount__c = addProd.oppLineItem.ACV_Amount__c;
+                        tempOppLineItem.TCV_Amount__c = addProd.oppLineItem.TCV_Amount__c; 
+                        if(addProd.oppLineItem.ACV_Amount__c != null){ //CR-00124276 : Added Null check for Flat Rebate Calculation
+                            tempOppLineItem.UnitPrice = addProd.oppLineItem.ACV_Amount__c;
+                        }
+                        tempOppLineItem.Amount__c = addProd.oppLineItem.ACV_Amount__c;
+                        //End - CR-00128044 
+                        tempOppLineItem.CSP_Order_ID__c = addProd.oppLineItem.CSP_Order_ID__c;//VV-8985                                            
+                        oppLineItemInsertList.add(tempOppLineItem);
+                    }else{
+                        
+                        if(tempOppLineItem.PriceBookEntryId == id.valueOf(addProd.productPlatform)){
+                            tempOppLineItem = addProd.oppLineItem.clone(true,true,false,false);
+                            //Start - CR-00128044 : Saving Amount for Subscription products as ACV_Amount__c, TCV_Amount__c & ACV_Amount__c 
+                            //tempOppLineItem.Amount__c = addProd.oppLineItem.UnitPrice; // Added Amount field for CR-00104673
+                            tempOppLineItem.ACV_Amount__c = addProd.oppLineItem.ACV_Amount__c;
+                            tempOppLineItem.TCV_Amount__c = addProd.oppLineItem.TCV_Amount__c; 
+                            if(addProd.oppLineItem.ACV_Amount__c != null){ //CR-00124276 : Added Null check for Flat Rebate Calculation
+                                tempOppLineItem.UnitPrice = addProd.oppLineItem.ACV_Amount__c;
+                            }
+                            tempOppLineItem.Amount__c = addProd.oppLineItem.ACV_Amount__c;
+                            
+                            //End - CR-00128044
+                            tempOppLineItem.CSP_Order_ID__c = addProd.oppLineItem.CSP_Order_ID__c;//VV-8985                         
+                            oppLineItemUpdateList.add(tempOppLineItem);
+                        }else{
+                            tempOppLineItem = createOptLineItem(addProd.oppLineItem);
+                            tempOppLineItem.PriceBookEntryId = id.valueOf(addProd.productPlatform);
+                            //Start - CR-00128044 : Saving Amount for Subscription products as ACV_Amount__c, TCV_Amount__c & ACV_Amount__c 
+                            //tempOppLineItem.Amount__c = addProd.oppLineItem.UnitPrice; // Added Amount field for CR-00104673
+                            tempOppLineItem.ACV_Amount__c = addProd.oppLineItem.ACV_Amount__c;
+                            tempOppLineItem.TCV_Amount__c = addProd.oppLineItem.TCV_Amount__c; 
+                            if(addProd.oppLineItem.ACV_Amount__c != null){ //CR-00124276 : Added Null check for Flat Rebate Calculation
+                                tempOppLineItem.UnitPrice = addProd.oppLineItem.ACV_Amount__c;
+                            }
+                            tempOppLineItem.Amount__c = addProd.oppLineItem.ACV_Amount__c;
+                            tempOppLineItem.CSP_Order_ID__c = addProd.oppLineItem.CSP_Order_ID__c;//VV-8985
+                            //End - CR-00128044 
+                            oppLineItemInsertList.add(tempOppLineItem);
+                            oppLineItemDeleteList.add(addProd.oppLineItem);
+                        }
+                    }
+                }
+                
+
+                
+                
+                
+                
+                OpportunityManagement.oppProductSave();
+
+                for(productSearchWrapper.addProduct addProd :  serviceProductWrap)
+                {
+                    tempOppLineItem = new OpportunityLineItem();
+                    tempOppLineItem =addProd.oppLineItem;
+                    //Bhavesh SFP-190 
+                    if(addProd.oppLineItem.Quantity__c == 0 ){
+                        ApexPages.addMessage(new ApexPages.Message(ApexPages.Severity.ERROR,'Quantity should be greater than 0.')); 
+                        return null; 
+                        break;
+                    }
+                    if(addProd.oppLineItem.Id == null){
+                        tempOppLineItem.PriceBookEntryId = id.valueOf(addProd.productPlatform);
+                        tempOppLineItem.Quantity = 1;
+                        tempOppLineItem.Amount__c = addProd.oppLineItem.UnitPrice; // Added Amount field for CR-00104673
+                        tempOppLineItem.Associated_Platform_Group__c = addProd.associatedPlatform;
+                        oppLineItemInsertList.add(tempOppLineItem);
+                    }else{
+                        
+                        if(tempOppLineItem.PriceBookEntryId == id.valueOf(addProd.productPlatform)){
+                            tempOppLineItem = addProd.oppLineItem.clone(true,true,false,false);
+                            tempOppLineItem.Associated_Platform_Group__c = addProd.associatedPlatform;
+                            tempOppLineItem.Amount__c = addProd.oppLineItem.UnitPrice; // Added Amount field for CR-00104673
+                            oppLineItemUpdateList.add(tempOppLineItem);
+                        }else{
+                            tempOppLineItem = createOptLineItem(addProd.oppLineItem);
+                            tempOppLineItem.Associated_Platform_Group__c = addProd.associatedPlatform;
+                            tempOppLineItem.PriceBookEntryId = id.valueOf(addProd.productPlatform);
+                            tempOppLineItem.Amount__c = addProd.oppLineItem.UnitPrice; // Added Amount field for CR-00104673
+                            oppLineItemInsertList.add(tempOppLineItem);
+                            oppLineItemDeleteList.add(addProd.oppLineItem);
+                        
+                        }
+                    }
+                }
+            
+                //Siva Adapa - Salesfore casting Automation changes Start
+                    // Retrieving SNS Product From Pricebookentry
+                    PriceBookEntry snsProductEntry = snsProduct(true,opp.CurrencyIsoCode);
+                    
+                    //Generating linkId sequense number for License and SNS product lines     
+                    Integer linkId = 0;
+                    for(productSearchWrapper.addProduct prodAdd : sddcProductWrap)
+                    {        
+                        if(prodAdd.oppLineItem.Id != null && prodAdd.productFamily == System.Label.License_Label){  
+                            if(prodAdd.oppLineItem.VMStar_Product_Link_Id__c != null && prodAdd.oppLineItem.VMStar_Product_Link_Id__c != ''){  
+                                String uId = prodAdd.oppLineItem.VMStar_Product_Link_Id__c;
+                                String[] strArr = uId.split('-');
+                                String strNumber = '';
+                                Integer myNumber;
+                                if(strArr.size() >2)
+                                {
+                                   strNumber = strArr[2];
+                                   myNumber = Integer.valueOf(strNumber );
+                                    if(myNumber > linkId)
+                                    {   
+                                        linkId = myNumber;  
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    linkId = ++linkId ;
+
+                //Siva Adapa - Sales forecasting Automation changes End
+                for(productSearchWrapper.addProduct addProd : sddcProductWrap)
+                {
+                    tempOppLineItem = new OpportunityLineItem();
+                    tempOppLineItem =addProd.oppLineItem;
+                    //Start : CR-00135287 - Adding Error Message for Before_Rebate_Amount__c = 0.0
+              if(addProd.oppLineItem.Before_Rebate_Amount__c <= 0.0 && addProd.platformGroup != 'REBATE'){
+                  ApexPages.addMessage(new ApexPages.Message(ApexPages.Severity.ERROR,'Before Rebate Amount should be greater than 0.')); 
+                  return null; 
+                  break;
+                }
+                    //End : CR-00135287 
+                    
+                    // Start: Sandip- added validation to prevent users from entering quanity 0 -- Part of Forecasting Project  
+                if(addProd.oppLineItem.Quantity__c == 0 ){
+                  ApexPages.addMessage(new ApexPages.Message(ApexPages.Severity.ERROR,'Quantity should be greater than 0.')); 
+                  return null; 
+                  break;
+                }   
+                  // End: Sandip- added validation to prevent users from entering quanity 0 -- Part of Forecasting Project
+                    //Siva Adapa - Sales  forecasting Automation changes Start
+                    if(addProd.oppLineItem.Id == null && addProd.productFamily == System.Label.License_Label)
+                    {
+                        //Generating Unique Id string for mapping License and SNS product lines 
+                        String strLinkId = '';
+                        if(linkId < 10){
+                                strLinkId = 'LSPM'+'-'+opp.Id+'-'+'0'+linkId;   
+                            }
+                            else{
+                                strLinkId = 'LSPM'+'-'+opp.Id+'-'+linkId;
+                            }
+                        
+                            //Preparing License and SNS Record Lines
+                            OpportunityLineItem snsTempOppLineItem = new OpportunityLineItem();
+                            snsTempOppLineItem.OpportunityId = opp.Id;
+                            snsTempOppLineItem.PriceBookEntryId = snsProductEntry .id;
+                            
+                            productSearchWrapper.addProduct snsProduct = new productSearchWrapper.addProduct(snsTempOppLineItem);
+                        
+                            snsProduct.platformGroup = snsProductEntry.Product2.Platform_Group__c;
+                            snsProduct.productPlatform = snsProductEntry.Product2.Product_Platform__c;
+                            snsProduct.prodType = addProd.prodType; // Need clarification
+                            snsProduct.oppLineItem.OpportunityId = opp.Id;
+                            snsProduct.oppLineItem.PriceBookEntryId = snsProductEntry.id;
+                            //snsProduct.oppLineItem.SNS_Amount__c = snsProduct.oppLineItem.Quantity; //Passing the blank value to the sns percent field of the License product                       
+                            snsProduct.oppLineItem.Quantity = 1;
+                            snsProduct.oppLineItem.Quantity__c = 1;
+                            snsProduct.oppLineItem.SNS__c = SNS_Product_Line__c.getall().get('Sns Product Line Default Values').SNS__c;
+                            snsProduct.oppLineItem.SNS_Percent__c = Decimal.Valueof(SNS_Product_Line__c.getall().get('Sns Product Line Default Values').SNS_Percent__c);
+                            snsProduct.oppLineItem.VMStar_Product_Link_Id__c = strLinkId;
+             
+                            addProd.oppLineItem.PriceBookEntryId = id.valueOf(addProd.productPlatform);
+                            addProd.oppLineItem.Amount__c = addProd.oppLineItem.Before_Rebate_Amount__c;
+                            addProd.oppLineItem.SNS__c = '';
+                            addProd.oppLineItem.SNS_Percent__c = addProd.oppLineItem.Quantity; //Passing the blank value to the sns percent field of the License product
+                            addProd.oppLineItem.SNS_Amount__c = addProd.oppLineItem.Quantity; //Passing the blank value to the sns percent field of the License product
+                            addProd.oppLineItem.Quantity = 1;
+                            snsProduct.oppLineItem.Before_Rebate_Amount__c= addProd.oppLineItem.Before_Rebate_Amount__c;
+                            /*if( addProd.oppLineItem.Amount__c !=null){
+                            snsProduct.oppLineItem.Amount__c = addProd.oppLineItem.Amount__c * 0.25;
+                            snsProduct.oppLineItem.SNS_Amount__c = addProd.oppLineItem.Amount__c * 0.25;
+                            }*/
+                            if(addProd.oppLineItem.Before_Rebate_Amount__c != null){
+                                snsProduct.oppLineItem.Amount__c = addProd.oppLineItem.Before_Rebate_Amount__c * 0.25;
+                                snsProduct.oppLineItem.SNS_Amount__c = addProd.oppLineItem.Before_Rebate_Amount__c * 0.25;
+                            }
+                            snsProduct.oppLineItem.UnitPrice = snsProduct.oppLineItem.Amount__c;
+                            addProd.oppLineItem.UnitPrice = addProd.oppLineItem.Amount__c;
+                            addProd.oppLineItem.VMStar_Product_Link_Id__c = strLinkId;
+                            
+                            addProd.oppLineItem.ByPass_Trigger__c = true; // added to bypass the trigger functionality
+                            snsProduct.oppLineItem.ByPass_Trigger__c = true; // added to bypass the trigger functionality
+                            
+                            //Adding License and SNS Products to the insert list
+                            oppLineItemInsertList.add(addProd.oppLineItem);
+                            oppLineItemInsertList.add(snsProduct.oppLineItem);
+                            linkId++;
+
+                    }//if(addProd.oppLineItem.Id == null){ //Commented by siva Adapa
+                    else if(addProd.oppLineItem.Id == null && addProd.productFamily != System.Label.License_Label)
+                    { //Added by siva Adapa
+                        //Siva Adapa - Salesforecasting Automation changes Start
+                        addProd.oppLineItem.PriceBookEntryId = id.valueOf(addProd.productPlatform);
+                        addProd.oppLineItem.SNS_Amount__c = calcSNSAmt(addProd.oppLineItem);
+                        addProd.oppLineItem.UnitPrice = totalLineAmt(addProd.oppLineItem);
+                        //tempOppLineItem.Amount__c = totalLineAmt(tempOppLineItem); // Added Amount field for CR-00104673
+                        addProd.oppLineItem.Quantity = 1;
+                        //Start : CR-00135287 : Changes to get Before Rebate Amount on UI
+                        addProd.oppLineItem.Before_Rebate_Amount__c = addProd.oppLineItem.Before_Rebate_Amount__c;
+                        addProd.oppLineItem.Amount__c = addProd.oppLineItem.Before_Rebate_Amount__c;
+                        //End : CR-00135287 : Changes to get Before Rebate Amount on UI
+                        
+                        oppLineItemInsertList.add(addProd.oppLineItem);
+            
+                    //Siva Adapa - Salesforecasting Automation changes End
+                        
+                    }
+                    else
+                    {                   
+                        //if(addProd.productFamily == 'SNS'){ // Commented by Siva Adapa to add the Below condition
+                        if(addProd.productFamily == 'SNS' && addProd.oppLineItem.VMStar_Product_Link_Id__c  ==null){ // Added by Siva Adapa for skipping SNS products that are already assaigned to License product
+                            ApexPages.addMessage(new ApexPages.Message(ApexPages.Severity.ERROR,'Please Delete SNS Product and Add it as an Attribute.')); 
+                            return null; 
+                            break;
+                        }
+                        //if(addProd.productPlatform == null){ // Commented by Siva Adapa to add the Below condition
+                        if(addProd.productPlatform == null && addProd.productFamily != System.Label.SNS_Label){// Added by Siva Adapa for skipping SNS products that are already assaigned to License product
+                            ApexPages.addMessage(new ApexPages.Message(ApexPages.Severity.ERROR,'Please Select Product Platform for Saving the Product.')); 
+                            return null; 
+                            break;
+                        }
+                        if(tempOppLineItem.PriceBookEntryId == id.valueOf(addProd.productPlatform))
+                        {
+                            tempOppLineItem = addProd.oppLineItem.clone(true,true,false,false);
+                            tempOppLineItem.Product2.Family = addProd.oppLineItem.Product2.Family;
+                            tempOppLineItem.Before_Rebate_Amount__c = addProd.oppLineItem.Before_Rebate_Amount__c;
+                            //Siva Adapa changes start
+                            if(tempOppLineItem.product2.Family == System.Label.SNS_Label){                              
+                                for(productSearchWrapper.addProduct licenseprodwrp : sddcProductWrap){
+                                    if(licenseprodwrp.productFamily == System.Label.License_Label && licenseprodwrp.oppLineItem.VMStar_Product_Link_Id__c == tempOppLineItem.VMStar_Product_Link_Id__c){
+                                        tempOppLineItem.Before_Rebate_Amount__c = licenseprodwrp.oppLineItem.Before_Rebate_Amount__c;
+                                        Decimal snsPercent =0.0;
+                                        if(addProd.oppLineItem.SNS_Percent__c != null){
+                                            //snsPercent = (addProd.oppLineItem.SNS_Percent__c / 100).setScale(2);
+                                            snsPercent = addProd.oppLineItem.SNS_Percent__c / 100;
+                                        }
+                                        Integer sns = 0;                               
+                                        if(tempOppLineItem.SNS__c != 'Other'){
+                                            sns = integer.valueOf(tempOppLineItem.SNS__c.substring(0,1));
+                                        }
+                                        if(tempOppLineItem.Before_Rebate_Amount__c != null && tempOppLineItem.SNS__c != 'Other'){
+                                            //tempOppLineItem.SNS_Amount__c =  (tempOppLineItem.Before_Rebate_Amount__c * sns * snsPercent).setScale(2);
+                                            //tempOppLineItem.SNS_Amount__c =  tempOppLineItem.Before_Rebate_Amount__c * sns * snsPercent;
+                                            if(tempOppLineItem.SNS_Amount__c != null){
+                                                tempOppLineItem.SNS_Amount__c = calcSNSAmt(tempOppLineItem);
+                                            }else{
+                                                tempOppLineItem.SNS_Amount__c =  tempOppLineItem.Before_Rebate_Amount__c * sns * snsPercent;
+                                            }
+                                            
+                                        }
+                                        tempOppLineItem.Amount__c = tempOppLineItem.SNS_Amount__c;
+                                        tempOppLineItem.UnitPrice= tempOppLineItem.SNS_Amount__c;
+                                    }
+                                }
+                            }else{
+                                tempOppLineItem.SNS_Amount__c = calcSNSAmt(tempOppLineItem);
+                                tempOppLineItem.UnitPrice= totalLineAmt(tempOppLineItem);
+                                tempOppLineItem.Amount__c = addProd.oppLineItem.Before_Rebate_Amount__c;    
+                            }
+                            //tempOppLineItem.SNS_Amount__c = 0.00;
+                            //End : CR-00135287 : Changes to get Before Rebate Amount on UI
+                            oppLineItemUpdateList.add(tempOppLineItem);
+                        }
+                        else if(tempOppLineItem.product2.Family == System.Label.License_Label){ 
+                                
+                                tempOppLineItem = createOptLineItem(addProd, true);
+                                
+                                //Deleting existing SNS line item and Creating new SNS line item to the present License line item
+                                for(productSearchWrapper.addProduct delProd : sddcProductWrap)
+                                {
+                                    if(delProd.oppLineItem.product2.Family == System.Label.SNS_Label && delProd.oppLineItem.VMStar_Product_Link_Id__c == tempOppLineItem.VMStar_Product_Link_Id__c){
+                                        oppLineItemInsertList.add( createOptLineItem(delProd, true) );
+                                        oppLineItemDeleteList.add(delProd.oppLineItem);
+                                    }   
+                                }
+                                
+                                oppLineItemInsertList.add(tempOppLineItem);
+                                oppLineItemDeleteList.add(addProd.oppLineItem);
+                            }
+                        else
+                        {
+                            tempOppLineItem = createOptLineItem(addProd, false);
+                            //tempOppLineItem.Amount__c = totalLineAmt(tempOppLineItem); // Added Amount field for CR-00104673
+                            //Start : CR-00135287 : Changes to get Before Rebate Amount on UI
+                            
+                            //Siva Adapa changes start
+                            if(tempOppLineItem.product2.Family == System.Label.SNS_Label){ 
+                                //tempOppLineItem.Amount__c = tempOppLineItem.Before_Rebate_Amount__c * 0.25;
+                                tempOppLineItem.Amount__c = tempOppLineItem.UnitPrice;
+                            }
+                                //Siva Adapa changes end
+                            
+                            //tempOppLineItem.SNS_Amount__c = 0.00;
+                            //End : CR-00135287 : Changes to get Before Rebate Amount on UI
+                            oppLineItemInsertList.add(tempOppLineItem);
+                            oppLineItemDeleteList.add(addProd.oppLineItem);
+        
+                        }
+                    }
+                    
+                }
+                
+                try{
+                     /***** START - CR-00135498 - 29July2015 - Dalia Pan *****/   
+                    List<OpportunityLineItem> listOpportunityLineItem = new List<OpportunityLineItem>();
+                    Map<ID,OpportunityLineItem> mapOfProduct = new Map<ID,OpportunityLineItem>();
+                    List<OpportunityLineItem> listAmountChangedProducts = new List<OpportunityLineItem>();
+                    List<OpportunityLineItem> listOtherChangesOppProducts = new List<OpportunityLineItem>();    
+                                
+                    boolean FutureSwtich = false;
+                    if(OnOffSwitch__c.getall().get('FlatRebateFutureMethodSwitch').Active__c !=null){
+                        FutureSwtich = OnOffSwitch__c.getall().get('FlatRebateFutureMethodSwitch').Active__c;
+                    }
+                    
+                    //'Managed Sales Opportunity' Record type
+                    // safiya commented variable as part of CR 00136131
+                    //String MSORecordTypeId = Schema.SObjectType.Opportunity.getRecordTypeInfosByName().get('Managed Sales Opportunity').getRecordTypeId(); 
+                    
+                    //Stage Value for Flat Rebate          
+                    List<String> listStage  = System.Label.Opportunity_Stage_Values_for_Rebate.split(',');
+                    Set<String> setStage = new Set<String>();
+                    for(String s : listStage){
+                        setStage.add(s);
+                    }
+                    
+                    String businessLineForAWByPass = system.label.FRBypassBusinessLineonOppty;  //CR-00138572 starts getting Business line for AW
+                    List<String> listByPassRTMforAW = system.label.FRBypassRTMFOrOppty.split(',');//getting route to market for AW
+                    
+                    set<String> setByPassRTMforAW = new set<String>();
+                    setByPassRTMforAW.addAll(listByPassRTMforAW);
+                    
+                    //Get picklist RTM picklist values from Flat_Rebate_Admin__c
+                    Schema.DescribeFieldResult rtmValue = Flat_Rebate_Admin__c.RTM__c.getDescribe();
+                    List<Schema.PicklistEntry> listRTMValues = rtmValue.getPicklistValues();
+                    Set<String> RTM = new Set<String>();
+                    for(Schema.PicklistEntry s : listRTMValues){
+                        RTM.add(s.getLabel());
+                    } 
+        
+                    //System.debug('************oppLineItemUpdateList***************'+oppLineItemUpdateList);
+                    //System.debug('************oppLineItemInsertList***************'+oppLineItemInsertList);
+                    
+                    /* Prasad : 8-Jul-2016 - Added Bypass For Profiles - New Requirement - Starts */ 
+                    Id loggedInUserProfileId = UserInfo.getProfileId();
+                    Boolean bypassForProfiles = false;
+                    String loggedInUserProfileName = [Select Id, Name from Profile where Id = :loggedInUserProfileId Limit 1 ].Name;
+                    List<Orion_DupCheck_Bypass__c> lstBypassProfiles = new List<Orion_DupCheck_Bypass__c>();
+                    if(!Test.isRunningTest()){
+                        lstBypassProfiles = Orion_DupCheck_Bypass__c.getAll().values();
+                    }else{
+                        Orion_DupCheck_Bypass__c newcs1 = new Orion_DupCheck_Bypass__c(Name ='Profile-1',Profile_Name__c='3PS User' );            
+                        lstBypassProfiles.add(newcs1);            
+                    }
+          if(!lstBypassProfiles.isEmpty()){
+            for(Orion_DupCheck_Bypass__c strCSValues : lstBypassProfiles){
+              if(loggedInUserProfileName.equalsIgnoreCase(strCSValues.Profile_Name__c)){
+                bypassForProfiles = true;
+                break; 
+              }
+            }
+          }
+                    /* Prasad : 8-Jul-2016 - Added Bypass For Profiles - New Requirement - Starts */ 
+                    
+                    //Modified below call by Vijit for CR-00141228 - START
+                    //Modified below query to comment Business_Line__c from where clause for CR-00142773 - Vijit - START
+                    /* Prasad : 3-Aug-2016 - Added New Logic for Dup Check - Starts */
+                    System.debug('***+++*** Calling New Method : Starts');
+                    if(!bypassForProfiles){ 
+                        /*if(!oppLineItemInsertList.isEmpty()){
+                            
+                            List<Opportunity> opptyList = [select id, Business_Line__c from Opportunity where id =: oppLineItemInsertList[0].OpportunityId];
+                            
+                            if(opptyList[0].Business_Line__c != 'AW'){                                                        
+                                lstErrorMessages = Orion_Ph2_Utils.checkDuplicateProductsFromPage(oppLineItemInsertList);                                
+                           // }   
+                        }   */
+                        lstErrorMessages = Orion_Ph2_Utils.checkDuplicateProductsFromPage(oppLineItemInsertList);
+                    } //Modified below call by Vijit for CR-00141228 - END
+                    //Modified below query to comment Business_Line__c from where clause for CR-00142773 - Vijit- END
+                    String strErrorMessages = '';
+                    
+                    
+                    if(!bypassForProfiles){
+                        if(!lstErrorMessages.isEmpty()){
+                            //error = true; 
+                            System.debug('***+++*** Errors :  ' + strErrorMessages);
+                            for(String str : lstErrorMessages){
+                                ApexPages.addMessage(new ApexPages.Message(ApexPages.Severity.ERROR, str));    
+                            }
+                            Orion_Ph2_Utils.dupCheckAlreadyApplied = false;
+                            throw new addProductException ('EXCEPTION');                        
+                        }else{
+                            Orion_Ph2_Utils.dupCheckAlreadyApplied = true;
+                        }
+                    }
+                    
+                    System.debug('***+++*** Calling New Method : Ends');            
+                    
+                    /* Prasad : 3-Aug-2016 - Added New Logic for Dup Check - Ends */                    
+                    
+                    //If the FutureSwtich this True then run the DML on page - like before Flat Rebate, which will later run the Insert & Update trigger to Flat Rebate Calcualtion. 
+                    if(FutureSwtich == true){  
+                        if(!oppLineItemUpdateList.isEmpty()){            
+                            update oppLineItemUpdateList;   
+                        }                    
+                        if(!oppLineItemInsertList.isEmpty()){
+                            if(!Opp.HasOpportunityLineItem){
+                                skipValidationRule(true);
+                            }
+                            insert oppLineItemInsertList;
+                            if(!Opp.HasOpportunityLineItem){
+                                skipValidationRule(false);
+                            }
+                        }
+                    //If Eligible for Flat Rebate.  
+                    }else if((opp.RecordTypeID == MSORecordTypeId && setStage.contains(opp.StageName) && opp.Route_to_Market__c != null  && RTM.contains(opp.Route_to_Market__c)) && !(opp.Business_Line__c == businessLineForAWByPass && !setByPassRTMforAW.isEmpty() && setByPassRTMforAW.contains(opp.Route_to_Market__c)) ){                //CR-00138572 ends    checking for conditions to bypass flat rebate for AW
+                        //If Not Update, only Insert - No need to send to Flat Rebate Calculation
+                        if(oppLineItemUpdateList.isEmpty()){            
+                            if(!oppLineItemInsertList.isEmpty()){
+                                if(!Opp.HasOpportunityLineItem){
+                                    skipValidationRule(true);
+                                }
+                                insert oppLineItemInsertList;
+                                if(!Opp.HasOpportunityLineItem){
+                                    skipValidationRule(false);
+                                }
+                            }  
+                        }else{   
+                            //Query to get exisitng Data
+                           
+                            listOpportunityLineItem = [Select ID, OpportunityId, Amount__c, ACV_Amount__c, SNS__c, SNS_Percent__c, 
+                                SNS_Amount__c, UnitPrice, Flat_Rebate_Record_Id__c, Quantity__c,Duration_Months__c, Product2.Family,
+                                Monthly_Revenue__c,Product2.Pipeline_Product_Group__c, Applied_Flat_Rebate__c, Flat_Rebate_Applied__c, VMStar_Category__c,
+                                Before_Rebate_Amount__c,VMStar_Product_Link_Id__c,Service_ID__c from OpportunityLineItem 
+                                where OpportunityId =:opp.Id];
+                            //System.debug('************listOpportunityLineItem***************'+listOpportunityLineItem);
+                                
+                            if( listOpportunityLineItem.size()>0){
+                                for(OpportunityLineItem oppLineItem :listOpportunityLineItem) {
+                                    mapOfProduct.put(oppLineItem.ID, oppLineItem);
+                                }
+                            }
+                            //System.debug('************mapOfProduct***************'+mapOfProduct);
+                            
+                            for(OpportunityLineItem oppObject: oppLineItemUpdateList){
+                                //system.debug('*********oppObject***'+oppObject);
+                                if((oppObject.VMStar_Category__c == 'Hybrid Cloud' 
+                                    && (oppObject.Duration_Months__c != mapOfProduct.get(oppObject.ID).Duration_Months__c 
+                                        || oppObject.Quantity__c != mapOfProduct.get(oppObject.ID).Quantity__c 
+                                        || oppObject.Monthly_Revenue__c != mapOfProduct.get(oppObject.ID).Monthly_Revenue__c 
+                                        || oppObject.ACV_Amount__c != mapOfProduct.get(oppObject.ID).ACV_Amount__c))
+                                    ||(oppObject.VMStar_Category__c == 'License' 
+                                        &&  oppObject.Amount__c != mapOfProduct.get(oppObject.ID).Amount__c )){
+                                                listAmountChangedProducts.add(oppObject);
+                                }else{
+                                                listOtherChangesOppProducts.add(oppObject);
+                                }
+                            }
+                            //Amount Is changed
+                            if(listAmountChangedProducts !=null && !listAmountChangedProducts.IsEmpty()){ 
+                                //system.debug('*****listAmountChangedProducts********'+listAmountChangedProducts);
+                                //system.debug('*****listOtherChangesOppProducts********'+listOtherChangesOppProducts);
+                                if(!recursive.RebateApplied && !recursive.callFromAddOpportunityProductController){
+                                    recursive.callFromAddOpportunityProductController = true;   
+                                    if(listOtherChangesOppProducts !=null && !listOtherChangesOppProducts.IsEmpty()){
+                                        if(!oppLineItemInsertList.isEmpty()){
+                                            //check to Make sure Insert is happening at Flat Rebate Class
+                                            recursive.callFromAddOpportunityProductController_Insert = true;
+                                            flatRebateCalculations.flatRebateFromOpportunityProductController(listAmountChangedProducts,listOtherChangesOppProducts,oppLineItemInsertList);
+        
+                                       }else{
+                                            flatRebateCalculations.flatRebateFromOpportunityProductController(listAmountChangedProducts,listOtherChangesOppProducts,null);
+                                       
+                                        }
+                                    }else{
+                                        if(!oppLineItemInsertList.isEmpty()){
+                                            //check to Make sure Insert is happening at Flat Rebate Class
+                                            recursive.callFromAddOpportunityProductController_Insert = true;
+                                            flatRebateCalculations.flatRebateFromOpportunityProductController(listAmountChangedProducts,null,oppLineItemInsertList);
+                                           
+                                        }else{
+                                            flatRebateCalculations.flatRebateFromOpportunityProductController(listAmountChangedProducts,null,null);
+                                           
+                                        }
+                                    }
+                                }
+                            //No Change in Amount of any Hybrid or License Products, No Flat Rebate calculation called. 
+                            //Hence Update & Insert.  
+                            }else{
+                                //system.debug('*****listOtherChangesOppProducts********'+listOtherChangesOppProducts);
+                                if(listOtherChangesOppProducts !=null && !listOtherChangesOppProducts.IsEmpty()){
+                                    update listOtherChangesOppProducts;
+                                  
+                                }
+                                    
+                                if(!oppLineItemInsertList.isEmpty()){
+                                    if(!Opp.HasOpportunityLineItem){
+                                        skipValidationRule(true);
+                                    }
+                                    insert oppLineItemInsertList;
+                                    
+                                    if(!Opp.HasOpportunityLineItem){
+                                        skipValidationRule(false);
+                                    }
+                                } 
+                            }               
+                        }
+                    //If Not Eligible for Flat Rebate. 
+                    }else{
+                        if(!oppLineItemUpdateList.isEmpty()){            
+                            update oppLineItemUpdateList;
+                          
+                        }                    
+                        if(!oppLineItemInsertList.isEmpty()){
+                            if(!Opp.HasOpportunityLineItem){
+                                skipValidationRule(true);
+                            }
+                            insert oppLineItemInsertList;
+                            if(!Opp.HasOpportunityLineItem){
+                                skipValidationRule(false);
+                            }
+                        }
+                    }           
+                    /***** END - CR-00135498 - 29July2015 - Dalia Pan *****/                      
+         
+                    if(!oppLineItemDeleteList.isEmpty()){
+                        recursive.allowBackendProcess = true;    
+                        delete oppLineItemDeleteList;
+                        }
+                        
+                    // Added for CR-00116008 - Start
+                      update opp;
+                     
+                    // Added for CR-00116008 - End
+                    // After updating the Opportunity, call a future method to update the Opportunity Splits
+                    AddOpportunityOverlaySplit.OpptyOverlaySplitUpdate(new Set<Id>{opp.Id});
+                    
+                    isEdit = false;
+                    isSuccess = true;
+                    return null;
+                }catch(Exception ex){ 
+                   string str = 'Expected Close Date cannot be a Past Date.';
+                   if(ex.getMessage().contains(str))
+                      ApexPages.addMessage(new ApexPages.Message(ApexPages.Severity.ERROR,str)); 
+        
+                    // Added for CR-00115042 - Start            
+                    //String profileName = CustomSettingUtility.getProfileName(UserInfo.getProfileId());
+                   // if(!SYSTEM_ADMIN.equalsIgnoreCase(profileName)){
+                        string str1 = 'Hybrid Cloud Product';
+                        if(ex.getMessage().contains(str1)){
+                            ApexPages.addMessage(new ApexPages.Message(ApexPages.Severity.ERROR,'Hybrid Cloud Product section cannot have blank values for duration- months, monthly revenue Service Type,Opportunity Type, Payment Type, Datacenter Region, etc.')); 
+                        }
+                       
+                
+                   // }
+                    // Added for CR-00115042 - End
+                    return null;  
+                    
+                  }
+                 
+        
+        }
+    }
+        else
+            
+        return null; 
+
+
+
+    }
+ 
+    
+    public static OpportunityLineItem createOptLineItem(OpportunityLineItem Opt){
+        OpportunityLineItem tempOptLineItem = new OpportunityLineItem();
+        tempOptLineItem = Opt.clone(false,true,false,false);
+        tempOptLineItem.TotalPrice = null;
+        tempOptLineItem.Quantity = 1;
+        
+        return tempOptLineItem;
+    }
+    
+    public static OpportunityLineItem createOptLineItem(productSearchWrapper.addProduct prod, Boolean byPassTrigger){
+        OpportunityLineItem tempOppLineItemSNS = createOptLineItem(prod.oppLineItem);
+        tempOppLineItemSNS.Product2.Family = prod.oppLineItem.Product2.Family;
+        tempOppLineItemSNS.SNS_Amount__c = calcSNSAmt(tempOppLineItemSNS);
+        tempOppLineItemSNS.UnitPrice= totalLineAmt(tempOppLineItemSNS);
+        tempOppLineItemSNS.PriceBookEntryId = id.valueOf(prod.productPlatform);
+        tempOppLineItemSNS.Before_Rebate_Amount__c = prod.oppLineItem.Before_Rebate_Amount__c;
+        tempOppLineItemSNS.Amount__c = prod.oppLineItem.Before_Rebate_Amount__c;
+        tempOppLineItemSNS.VMStar_Product_Link_Id__c = prod.oppLineItem.VMStar_Product_Link_Id__c;
+        tempOppLineItemSNS.ByPass_Trigger__c = byPassTrigger; // added to bypass the trigger functionality
+        return tempOppLineItemSNS;
+    }
+
+    public PageReference browseProd() {
+        //Siva - Start
+        productWrap2.clear();
+        productWrap3.clear();
+        
+        //Siva - End
+        if(selectedItem == COMP_FREQ){
+            //Siva - Start
+            selectProdGrop = false;
+            selectPlatform = false;
+            productWrap2.addAll(myCompanyMostRecent);
+            //companyMostRecent();
+            productWrap = new List<productSearchWrapper>();
+            //Siva - End
+            
+        }else if(selectedItem == MOST_FREQ){
+            //Siva - Start
+            selectProdGrop = false;
+            selectPlatform = false;
+            myMostRecent();
+            productWrap = new List<productSearchWrapper>();
+            //Siva - End    
+        }else if(selectedItem == SELECT_PROD){
+            productWrap2.clear();
+            productWrap3.clear();
+            selectProdGrop = true;
+            prodGrpOptions = new List<SelectOption>();
+            prodGrpOptions.add(new SelectOption('---None---', '---None---'));
+            for(String prodGrp : prodGrpOptionsMap.keyset()){
+                prodGrpOptions.add(new SelectOption(prodGrp, prodGrp));
+            }
+            productWrap = new List<productSearchWrapper>();
+        }else if(selectedItem == SELECT_ONE){
+            selectProdGrop = false;
+            selectPlatform = false;
+            selectProdGrop = false;
+            selectedPlatGrp = SELECT_NONE;
+            selectedProdGrp = SELECT_NONE;
+            productWrap2.clear();
+            productWrap3.clear();
+            
+        }
+        return null;
+    }  
+    
+    public PageReference runSearch() {
+    
+    String prodName = Apexpages.currentPage().getParameters().get('ProductName');
+       //Added : SF1 mobile Product Search    
+        //if(prodName == null || prodName == ''){
+            //prodName = prodSF1Name;
+        //}
+    //system.debug('@@ Search Product = '+prodName);   
+     // ends: SF1 mobile Product Search    
+    productWrap = new List<productSearchWrapper>();
+    
+    //Changes start by Bhuvaneshwari - PICO
+     //changes by Bhuvaneshwari CR-00143285 
+    /*if(opp.RecordTypeID == CBDRecordTypeId){
+        String psocredit = 'PSO CREDITS';
+        soql = 'Select Name,Id,Pricebook2Id,Product2Id, Product2.Family, Product2.Name, Product2.Product_Group__c, Product2.Division__c, Product2.Platform_Group__c, Product2.Product_Platform__c, Product2.Services__c, Product2.Hybrid_Cloud__c';
+        soql += ' from PriceBookEntry where IsActive = true AND Product2.IsSFA_PRM_Product__c = true AND priceBook2.isStandard = false AND Product2.Product_Platform__c LIKE \'%' + psocredit  + '%\'' ; //fetch only pso credits on typing pso
+        }
+    //Changes end by Bhuvaneshwari - PICO
+    */
+     //changes end by Bhuvaneshwari-CR-00143285 
+     //changes start by Bhuvaneshwari CR-00143285 
+     if(opp.RecordTypeID == CBDRecordTypeId){
+         if(prdPlatfrm!=null && !prdPlatfrm.isEmpty()){
+        soql = 'Select Name,Id,Pricebook2Id,Product2Id, Product2.Family, Product2.Name, Product2.Product_Group__c, Product2.Division__c, Product2.Platform_Group__c, Product2.Product_Platform__c, Product2.Services__c, Product2.Hybrid_Cloud__c,Product2.Pipeline_Product_Group__c';
+        soql += ' from PriceBookEntry where IsActive = true AND Product2.IsSFA_PRM_Product__c = true AND priceBook2.isStandard = false AND Product2.Product_Platform__c IN :prdPlatfrm ' ; 
+        }
+     }
+        else{
+
+    soql = 'Select Name,Id,Pricebook2Id,Product2Id, Product2.Family, Product2.Name, Product2.Product_Group__c, Product2.Division__c, Product2.Platform_Group__c, Product2.Product_Platform__c, Product2.Services__c, Product2.Hybrid_Cloud__c,Product2.Pipeline_Product_Group__c';
+    soql += ' from PriceBookEntry where IsActive = true AND Product2.IsSFA_PRM_Product__c = true AND priceBook2.isStandard = false AND Product2.Product_Platform__c != null ';
+     }
+    //changes end by Bhuvaneshwari CR-00143285 
+    SFA_PRM_Price_book_setting__c custompricebook = SFA_PRM_Price_book_setting__c.getInstance('SFA PRM Price Book');
+    
+    string iscode = ''+ opp.CurrencyISOCode;
+    if (!prodName.equals('') && prodName.length() > 1){
+      soql += 'AND CurrencyISOCode = \'' + iscode +'\'';
+      soql += 'AND Pricebook2Id = \'' + custompricebook.Price_Book_Id__c +'\'';
+      soql += ' AND ( Product2.Platform_Group__c like \'%' + String.escapeSingleQuotes(prodName)+  '%\' ';
+      soql += ' OR Product2.Product_Group__c like \'%' + String.escapeSingleQuotes(prodName)+  '%\' ';
+      soql += ' OR Product2.Division__c like \'%' + String.escapeSingleQuotes(prodName)+  '%\' ';
+      soql += ' OR Product2.Product_Platform__c like \'%' + String.escapeSingleQuotes(prodName)+  '%\' ';
+      soql += ')';
+      soql += ' Order by Product2.Division__c Limit '+ SearchLimit;
+      runQuery();
+      selectedItem = SELECT_ONE;
+      selectProdGrop = false;
+      selectPlatform = false;
+      productWrap2 = new List<productSearchWrapper>();
+      productWrap3 = new List<productSearchWrapper>();  
+    }else
+        showhide = false;
+    
+    return null;
+  }
+  
+  public void runQuery() {
+
+        list<PriceBookEntry> prodPriceBookList = new list<PriceBookEntry>();
+		System.debug('The final query that ran '+soql); 	//Manjunath - Added this log line on 27 Aug 2018
+        prodPriceBookList = Database.query(soql);
+        
+        set<Id> productIdSet = new set<Id>();
+        for(PriceBookEntry prod : prodPriceBookList){
+            if(!productIdSet.contains(prod.Product2Id)){
+                productIdSet.add(prod.Product2Id);
+                // CR-00134775 Uma Change Begins
+                //  If(prod.PRODUCT2.PRODUCT_GROUP__C!=null && (prod.PRODUCT2.PRODUCT_GROUP__C.toUpperCase() == 'MOBILE' || prod.PRODUCT2.PRODUCT_GROUP__C.toUpperCase() == 'WORKSPACE SERVICES') && (!validateProfileForAWProducts()))
+                    If(prod.PRODUCT2.PRODUCT_GROUP__C!=null && checkForAWProducts(prod.PRODUCT2.PRODUCT_GROUP__C.toUpperCase()) && (!validateProfileForAWProducts(prod.PRODUCT2.PRODUCT_GROUP__C.toUpperCase())))
+                    {
+                        continue;
+                    }    
+                // CR-00134775 Uma Change End 
+                if(validateUserForRebate() && prod.Product2.Product_Platform__c == 'REBATE'){
+                    productSearchWrapper prodwrap = new productSearchWrapper(prod, platfrmGrpProdPlatformMap.get(prod.Product2.Platform_Group__c));
+                    productWrap.add(prodwrap);
+                }else if (prod.Product2.Product_Platform__c != 'REBATE'){
+                    productSearchWrapper prodwrap = new productSearchWrapper(prod, platfrmGrpProdPlatformMap.get(prod.Product2.Platform_Group__c));
+                    productWrap.add(prodwrap);
+                }
+
+
+            }
+        }
+        if(!productWrap.isEmpty())
+            showhide = true;
+        else
+            showhide = false;      
+ 
+  }
+  
+  public PageReference addProduct() {
+  showhide = false;
+  showSave = true;
+  selectedItem = SELECT_ONE;
+  selectProdGrop = false;
+  selectPlatform = false;
+
+  if(!isEdit){
+    isEdit = true;
+  }
+    integer hybridCount = 0;
+    integer servCount = 0;
+    integer sddcCount = 0;
+  list<OpportunityLineItem> oppLineItemList = new list<OpportunityLineItem>();
+  if(hybridProductWrap == null)
+    hybridProductWrap = new list<productSearchWrapper.addProduct>();  
+    else
+    hybridCount = hybridProductWrap.size();
+  if(serviceProductWrap == null)
+    serviceProductWrap = new list<productSearchWrapper.addProduct>(); 
+    else
+    servcount = serviceProductWrap.size();
+  if(sddcProductWrap == null)
+    sddcProductWrap = new list<productSearchWrapper.addProduct>();
+    else
+    sddcCount = sddcProductWrap.size(); 
+    
+    if(productWrap2 != null && !productWrap2.isEmpty())
+        productWrap = productWrap2;
+    if(productWrap3 != null && !productWrap3.isEmpty())
+        productWrap = productWrap3;
+        
+    /*    
+    for(productSearchWrapper  proWrap : productWrap){
+        if(proWrap.selected && proWrap.productId != '' &&  proWrap.productId != null && proWrap.platformGroup != null && proWrap.platformGroup != '' && proWrap.isSDDCProd && !assocPlatformSet.contains(proWrap.platformGroup)){
+            assocPlatformSet.add(proWrap.platformGroup);
+            tempAssoctPlatformOpt.add(new SelectOption(proWrap.platformGroup, proWrap.platformGroup));
+        }
+    }
+    */
+   // system.debug('# tempAssoctPlatformOpt : '+tempAssoctPlatformOpt);  
+   //Changes start as part of CR-0013849 by safiya mohammad 
+    // safiya commented variable as part of CR 00136131
+    //String MSORecordTypeId = Schema.SObjectType.Opportunity.getRecordTypeInfosByName().get('Managed Sales Opportunity').getRecordTypeId();   
+    //Changes End as part of CR-0013849 by safiya mohammad
+    //Added By Prasenjeet For SaaS Sales Enablement 
+    Map<String,Cloud_Platform_Group__c> CloudPicklistDepVal = Cloud_Platform_Group__c.getAll();
+
+        list<string> Holder;
+        list<SelectOption> CldServiceTypeWrap;
+        list<SelectOption> CldDatacenterRegionWrap;
+  //End By Prasenjeet For SaaS Sales Enablement 
+    for(productSearchWrapper  proWrap : productWrap){
+        if(proWrap.selected && proWrap.productId != '' &&  proWrap.productId != null){
+             //Changes start as part of CR-0013849 by safiya mohammad
+           if(userRecords.size()>0 && proWrap.platformGroup == 'NSX' && opp.recordtypeid ==  MSORecordTypeId.substring(0,15) && String.isBlank(opp.NSX_Use_Case__c ) && opp.StageName !='Closed Won'&&opp.StageName !='07c - Closed Won' && opp.StageName !='01 - Prospect' && opp.StageName !='01 - Not Contacted' &&  opp.StageName !='02 - Contacted' &&  opp.StageName !='02 - Qualified' && opp.StageName !='08 - Closed Lost' && opp.StageName !='Closed Lost'){
+                ApexPages.addmessage(new ApexPages.message(ApexPages.severity.ERROR,System.label.NSX_Validation));
+                Error = true;               
+                return null;
+            }
+            //Changes End as part of CR-0013849 by safiya mohammad
+            productSearchWrapper.addProduct prod = new productSearchWrapper.addProduct(proWrap, opp.Id);
+            if(prod.prodSearch.isHybridProd){
+                prod.Counter= hybridCount;
+                prod.prodType = 'Hybrid';
+                // Added By Prasenjeet For SaaS Sales Enablement 
+               if(MSORecotypechk || CloudoptyRecotypechk ){
+                        CldServiceTypeWrap = new list<SelectOption>();
+                        CldDatacenterRegionWrap = new list<SelectOption>();
+                        
+                            for(string Platformgroupconfig: CloudPicklistDepVal.Keyset()){
+                                if((prod.Product2platform != null && prod.Product2platform.EqualsIgnoreCase(Platformgroupconfig)) || (prod.platformGroup != null && prod.platformGroup.EqualsIgnoreCase(Platformgroupconfig))){
+                                       //system.debug('Platformgroupconfig@#@$@#$@Platformgroupconfig'+Platformgroupconfig);
+                                    if(CloudoptyRecotypechk){
+                                           if(CloudPicklistDepVal.get(Platformgroupconfig).Service_Type__c != null){
+                                              CldServiceTypeWrap.add(new SelectOption('','-None-'));
+                                              Holder =new list<string>();
+                                              Holder = CloudPicklistDepVal.get(Platformgroupconfig).Service_Type__c.split(';');
+                                                for(String Val : Holder){
+                                                CldServiceTypeWrap.add(new SelectOption(Val,Val));
+                                                }
+                                            }   
+                                    }  
+                                   
+                                    if(CloudPicklistDepVal.get(Platformgroupconfig).Datacenter_Region__c != null){
+                                        CldDatacenterRegionWrap.add(new SelectOption('','-None-'));
+                                          Holder =new list<string>();
+                                          Holder = CloudPicklistDepVal.get(Platformgroupconfig).Datacenter_Region__c.split(';');
+                                            for(String Val : Holder){
+                                            CldDatacenterRegionWrap.add(new SelectOption(Val,Val));
+                                            }
+                                    }
+                                }
+                            }
+                            if(CloudoptyRecotypechk){
+                                if(CldServiceTypeWrap.isEmpty()){ 
+                                    CldServiceTypeWrap = CldServiceType;    
+                                }
+                            }
+
+                            if(CldDatacenterRegionWrap.isEmpty()){
+                                    CldDatacenterRegionWrap = CldDatacenterRegion;  
+                            }
+                                   
+                    prod.MapdependentServiceTypeAndDatacenterRegion(CldDatacenterRegionWrap,CldServiceTypeWrap);           
+                }
+                
+                //End By Prasenjeet For SaaS Sales Enablement 
+                hybridProductWrap.add(prod);
+                showHybrid = True;
+                hybridCount++;
+                }
+            if(prod.prodSearch.isServiceProd){
+                prod.Counter= servCount;
+                prod.prodType = 'Service';
+                prod.associatedPlatformOp = tempAssoctPlatformOpt;
+                serviceProductWrap.add(prod);
+                servCount++;
+            }    
+            if(prod.prodSearch.isSDDCProd){
+                prod.Counter= sddcCount;
+                prod.prodType = 'SDDC';
+                sddcProductWrap.add(prod);
+                sddcCount++;
+            }
+            if(!hybridProductWrap.isEmpty() || !serviceProductWrap.isEmpty() || !sddcProductWrap.isEmpty()){
+                showhide = false;
+            }
+            
+            if(!sddcProductWrap.isEmpty())
+                showSDDC = True;
+            if(!serviceProductWrap.isEmpty())    
+                showServices = True;
+            if(!hybridProductWrap.isEmpty())
+               showHybrid = True;
+            
+        }else{
+        
+        }
+    }
+    /*
+    for(productSearchWrapper.addProduct serprodwrap : serviceProductWrap){
+        serprodwrap.associatedPlatformOp = tempAssoctPlatformOpt;
+    }
+    */
+    productWrap = new List<productSearchWrapper>();  
+    productWrap2 = new List<productSearchWrapper>();
+    productWrap3 = new List<productSearchWrapper>();  
+    
+    return null;
+  }
+    
+
+
+public boolean validateUserForRebate(){
+    //system.debug('# email : '+UserInfo.getUserEmail());
+      Boolean flag=false;
+      for(Opportunity_Product_Access_List__c oppUser : Opportunity_Product_Access_List__c.getAll().values()){
+        if(UserInfo.getUserEmail().equals(oppUser.Email__c)){
+            flag=true;
+        }
+      
+      }
+        return flag;
+    }
+
+// CR-00134775 Uma Change Begins
+public boolean validateProfileForAWProducts(String ProductGroup){
+      Boolean flag=false;
+      for(AW_Product_Access_Profiles__c oppUser : AW_Product_Access_Profiles__c.getAll().values()){
+        if(UserInfo.getProfileId().equals(oppUser.Profile_Id__c)){
+           If(ProductGroup.equals(oppUser.Product_Group__c.toUpperCase()) && oppUser.Is_Able_To_Add__c == true) { flag=true;}
+        }
+      }
+        return flag;
+    }
+// CR-00134775 Uma Change ends
+
+// CR-00135238 Uma Change Begins
+public boolean checkForAWProducts(String ProductGroup){
+      Boolean flag=false;
+      for(AW_Products_After_Rebate_Percentages__c pgroup : AW_Products_After_Rebate_Percentages__c.getAll().values()){
+         if(ProductGroup.equals(pgroup.Name.toUpperCase())){
+            //System.debug('Matching Product Group is ' + pgroup.Name.toUpperCase());
+            flag=true;
+        }
+      }
+        return flag;
+    }
+// CR-00135238 Uma Change ends
+
+    //Siva - Returns User most recently added products
+    public void myMostRecent()
+    {
+        set<Id> productIdSet = new set<Id>();
+        set<Id> pricebookEntryIds = new set<Id>();
+        
+         //changes by Bhuvaneshwari for CR-00143285
+         List<OpportunityLineItem> opls=new List<OpportunityLineItem> ();
+         if(opp.RecordTypeID == CBDRecordTypeId){
+              if(prdPlatfrm!=null && !prdPlatfrm.isEmpty()){
+         opls = [Select PricebookEntryId From OpportunityLineItem Where CreatedById=:UserInfo.getUserId() AND PricebookEntry.Product2.IsSFA_PRM_Product__c=true AND PricebookEntry.Product2.IsActive=true AND PricebookEntry.priceBook2.isStandard=false  AND CurrencyISOCode =: opp.CurrencyISOCode AND  PricebookEntry.Product2.Product_Platform__c IN :prdPlatfrm ORDER BY CreatedDate DESC Limit 100];                         
+              }
+         }
+         else{
+         opls = [Select PricebookEntryId From OpportunityLineItem Where CreatedById=:UserInfo.getUserId() AND 
+                                          PricebookEntry.Product2.IsSFA_PRM_Product__c=true AND PricebookEntry.Product2.IsActive=true 
+                                          AND PricebookEntry.priceBook2.isStandard=false  AND CurrencyISOCode =: opp.CurrencyISOCode ORDER BY CreatedDate DESC Limit 100];                                    
+         }
+         //changes end by Bhuvaneshwari for CR-00143285
+        for(OpportunityLineItem opl : opls)
+        {
+            pricebookEntryIds.add(opl.PricebookEntryId);   
+        }
+        
+        for(PriceBookEntry pbe : [Select Name,Id,Product2.Family,Product2.Pipeline_Product_Group__c, Pricebook2Id,Product2Id, Product2.Name, Product2.Product_Group__c, Product2.Division__c, 
+                                  Product2.Platform_Group__c, Product2.Product_Platform__c, Product2.Services__c, Product2.Hybrid_Cloud__c From PriceBookEntry 
+                                  where Id IN :pricebookEntryIds AND CurrencyISOCode =: opp.CurrencyISOCode AND Product2.Product_Platform__c != null])
+        {
+        
+            if(productIdSet.size()>=MyMostRecentLimit)
+            {
+                break;
+            }
+            
+            // CR-00134775 Uma Change Begins
+            //    If(pbe.PRODUCT2.PRODUCT_GROUP__C!=null && (pbe.PRODUCT2.PRODUCT_GROUP__C.toUpperCase() == 'MOBILE' || pbe.PRODUCT2.PRODUCT_GROUP__C.toUpperCase() == 'WORKSPACE SERVICES')  && (!validateProfileForAWProducts()))
+                   If(pbe.PRODUCT2.PRODUCT_GROUP__C!=null && checkForAWProducts(pbe.PRODUCT2.PRODUCT_GROUP__C.toUpperCase()) && (!validateProfileForAWProducts(pbe.PRODUCT2.PRODUCT_GROUP__C.toUpperCase())))
+                    {
+                        continue;
+                    }    
+            // CR-00134775 Uma Change End 
+            if(!productIdSet.contains(pbe.Product2Id))
+            {
+                productIdSet.add(pbe.Product2Id);
+                productSearchWrapper prodwrap = new productSearchWrapper(pbe,platfrmGrpProdPlatformMap.get(pbe.Product2.Platform_Group__c));
+                productWrap2.add(prodwrap);
+            }
+            
+        }
+    }
+    
+    
+    public void queryAllMyCompany (){
+        myCompanyMostRecent = new list<productSearchWrapper>();
+        set<Id> productIdSet = new set<Id>();
+        set<Id> pricebookEntryIds = new set<Id>();
+         //changes by Bhuvaneshwari for CR-00143285
+         List<OpportunityLineItem> opls=new List<OpportunityLineItem> ();
+         if(opp.RecordTypeID == CBDRecordTypeId){
+              if(prdPlatfrm!=null && !prdPlatfrm.isEmpty()){
+         opls = [Select PricebookEntryId From OpportunityLineItem Where PricebookEntry.Product2.IsSFA_PRM_Product__c=true AND PricebookEntry.Product2.IsActive=true AND Product2.IsSFA_PRM_Product__c = true AND PricebookEntry.priceBook2.isStandard=false  AND CurrencyISOCode =: opp.CurrencyISOCode AND  PricebookEntry.Product2.Product_Platform__c IN :prdPlatfrm AND CreatedDate = LAST_N_DAYS:1 Order By CreatedDate];                         
+              }
+         }
+         else{
+         opls = [Select PricebookEntryId From OpportunityLineItem Where PricebookEntry.Product2.IsSFA_PRM_Product__c=true AND 
+                                          PricebookEntry.Product2.IsActive=true AND Product2.IsSFA_PRM_Product__c = true AND PricebookEntry.priceBook2.isStandard = false AND CurrencyISOCode =: opp.CurrencyISOCode AND CreatedDate = LAST_N_DAYS:1 Order By CreatedDate ];
+         }
+         //changes end by Bhuvaneshwari for CR-00143285
+       
+        for(OpportunityLineItem opl : opls){    
+            if(pricebookEntryIds != null && !pricebookEntryIds.Contains(opl.PricebookEntryId)){
+                if(pricebookEntryIds.size() < CompanyMostRecentLimit){
+                    pricebookEntryIds.add(opl.PricebookEntryId);
+                }else break;
+            }
+        }
+        
+        for(PriceBookEntry pbe : [Select Name,Id,Product2.Family, Pricebook2Id,Product2Id, Product2.Name, Product2.Product_Group__c, Product2.Division__c, 
+                                  Product2.Platform_Group__c, Product2.Product_Platform__c, Product2.Services__c, Product2.Hybrid_Cloud__c,Product2.Pipeline_Product_Group__c From PriceBookEntry 
+                                  where Id IN :pricebookEntryIds AND IsActive = true AND Product2.IsSFA_PRM_Product__c = true AND priceBook2.isStandard = false AND CurrencyISOCode =: opp.CurrencyISOCode AND Product2.Product_Platform__c != null ORDER BY CreatedDate DESC ]){
+
+                // CR-00134775 Uma Change Begins
+                //     If(pbe.PRODUCT2.PRODUCT_GROUP__C!=null && (pbe.PRODUCT2.PRODUCT_GROUP__C.toUpperCase() == 'MOBILE' || pbe.PRODUCT2.PRODUCT_GROUP__C.toUpperCase() == 'WORKSPACE SERVICES') && (!validateProfileForAWProducts()))
+                       If(pbe.PRODUCT2.PRODUCT_GROUP__C!=null && checkForAWProducts(pbe.PRODUCT2.PRODUCT_GROUP__C.toUpperCase()) && (!validateProfileForAWProducts(pbe.PRODUCT2.PRODUCT_GROUP__C.toUpperCase())))
+                        {
+                           continue;
+                        }    
+                // CR-00134775 Uma Change End 
+
+                if(validateUserForRebate() && pbe.Product2.Product_Platform__c == 'REBATE'){
+                    productSearchWrapper prodwrap = new productSearchWrapper(pbe,platfrmGrpProdPlatformMap.get(pbe.Product2.Platform_Group__c));
+                    myCompanyMostRecent.add(prodwrap);
+                }else if (pbe.Product2.Product_Platform__c != 'REBATE'){
+                    productSearchWrapper prodwrap = new productSearchWrapper(pbe,platfrmGrpProdPlatformMap.get(pbe.Product2.Platform_Group__c));
+                    myCompanyMostRecent.add(prodwrap);
+                }
+        }       
+    }
+    /*
+    //Siva - Returns company's most recently added products
+    public void companyMostRecent()
+    {
+        set<Id> productIdSet = new set<Id>();
+        set<Id> pricebookEntryIds = new set<Id>();
+        List<OpportunityLineItem> opls = [Select PricebookEntryId From OpportunityLineItem Where PricebookEntry.Product2.IsSFA_PRM_Product__c=true AND 
+                                          PricebookEntry.Product2.IsActive=true AND Product2.IsSFA_PRM_Product__c = true AND PricebookEntry.priceBook2.isStandard=false AND CurrencyISOCode =: opp.CurrencyISOCode Order By CreatedDate DESC Limit 100];
+                                          
+        Integer i = 1;
+        for(OpportunityLineItem opl : opls)
+        {
+            pricebookEntryIds.add(opl.PricebookEntryId);
+        }
+        
+        for(PriceBookEntry pbe : [Select Name,Id, Product2.Family, Pricebook2Id,Product2Id, Product2.Name, Product2.Product_Group__c, Product2.Division__c, 
+                                  Product2.Platform_Group__c, Product2.Product_Platform__c, Product2.Services__c, Product2.Hybrid_Cloud__c From PriceBookEntry 
+                                  where Id IN :pricebookEntryIds AND IsActive = true AND Product2.IsSFA_PRM_Product__c = true AND priceBook2.isStandard = false AND CurrencyISOCode =: opp.CurrencyISOCode AND Product2.Product_Platform__c != null ORDER BY CreatedDate DESC ])
+        {
+            if(productIdSet.size()>=CompanyMostRecentLimit)
+            {
+                break;
+            }
+            if(!productIdSet.contains(pbe.Product2Id))
+            {
+                productIdSet.add(pbe.Product2Id);
+                productSearchWrapper prodwrap = new productSearchWrapper(pbe,platfrmGrpProdPlatformMap.get(pbe.Product2.Platform_Group__c));
+                productWrap2.add(prodwrap);
+            }
+        }
+    }
+    */
+    
+    //Siva - Clone Opportunity Product
+    public void cloneOpportunityProduct()
+    {
+        String oplId = ApexPages.CurrentPage().getParameters().get('opplineItemRecId'); 
+        
+        //CR-00128044 : Adding fields ACV_Amount__c & TCV_Amount__c in the below query. 
+        //CR-00124276 : Adding field Before_Rebate_Amount__c in the below query.  
+        OpportunityLineItem opl = [Select PriceBookEntryId,Quantity,UnitPrice,Opportunity.Id,Quantity__c,   
+                                    Duration_Months__c,Monthly_Revenue__c,Product2.Family,
+                                   Service_Type__c,Opportunity_Type__c,Payment_Type__c,Datacenter_Region__c,Data_Load_Service__c,Amount__c,
+                                   Product2Id, product2.Services__c, product2.Hybrid_Cloud__c, product2.Platform_Group__c, product2.Product_Platform__c 
+                                   ,ACV_Amount__c, TCV_Amount__c,CSP_Order_ID__c, Before_Rebate_Amount__c,Product2.Pipeline_Product_Group__c,VMStar_Category__c,VMStar_Product_Link_Id__c,Service_ID__c
+                                   From OpportunityLineItem Where Id=:oplId];
+
+
+        OpportunityLineItem oppliclone = new OpportunityLineItem();
+        oppliclone = opl.clone(false,true,false,false);
+        //system.debug('Cloned opptyline: '+oppliclone);
+        List<SelectOption> tempproductPlatformOpt = new List<SelectOption>();
+        for(string str : platfrmGrpProdPlatformMap.get(opl.product2.Platform_Group__c)){
+            if(str.contains(';')){
+                tempproductPlatformOpt.add(new SelectOption(str.split(';')[1], str.split(';')[0])); 
+            }
+        }
+        
+        Map<String,Cloud_Platform_Group__c> CloudPicklistDepVal = Cloud_Platform_Group__c.getAll();
+        list<string> Holder;
+        list<SelectOption> CldServiceTypeWrap;
+        list<SelectOption> CldDatacenterRegionWrap;
+        
+        
+        productSearchWrapper.addProduct opplclone = new productSearchWrapper.addProduct(oppliclone);
+        opplclone.productPlatformOpt = tempproductPlatformOpt;
+        opplclone.prodType = 'Hybrid';
+        opplclone.Counter = hybridProductWrap.size();
+        //system.debug('Cloned opptyline wrap: '+opplclone);
+                        // Added By Prasenjeet
+               if(MSORecotypechk || CloudoptyRecotypechk ){
+                        CldServiceTypeWrap = new list<SelectOption>();
+                        CldDatacenterRegionWrap = new list<SelectOption>();
+                        
+                            for(string Platformgroupconfig: CloudPicklistDepVal.Keyset()){
+
+                                if((opplclone.Product2platform != null && opplclone.Product2platform.EqualsIgnoreCase(Platformgroupconfig)) || (opplclone.platformGroup != null && opplclone.platformGroup.EqualsIgnoreCase(Platformgroupconfig))){
+                                    if(CloudoptyRecotypechk){
+                                           if(CloudPicklistDepVal.get(Platformgroupconfig).Service_Type__c != null){
+                                              CldServiceTypeWrap.add(new SelectOption('','-None-'));
+                                              Holder =new list<string>();
+                                              Holder = CloudPicklistDepVal.get(Platformgroupconfig).Service_Type__c.split(';');
+                                                for(String Val : Holder){
+                                                CldServiceTypeWrap.add(new SelectOption(Val,Val));
+                                                }
+                                            }   
+                                    }  
+                                   
+                                    if(CloudPicklistDepVal.get(Platformgroupconfig).Datacenter_Region__c != null){
+                                         CldDatacenterRegionWrap.add(new SelectOption('','-None-'));
+                                          Holder =new list<string>();
+                                          Holder = CloudPicklistDepVal.get(Platformgroupconfig).Datacenter_Region__c.split(';');
+                                            for(String Val : Holder){
+                                            CldDatacenterRegionWrap.add(new SelectOption(Val,Val));
+                                            }
+                                    }
+                                }
+                            }
+                            if(CloudoptyRecotypechk){
+                                if(CldServiceTypeWrap.isEmpty()){ 
+                                    CldServiceTypeWrap = CldServiceType;    
+                                }
+                            }
+
+                            if(CldDatacenterRegionWrap.isEmpty()){
+                                    CldDatacenterRegionWrap = CldDatacenterRegion;  
+                            }
+                                   
+                    opplclone.MapdependentServiceTypeAndDatacenterRegion(CldDatacenterRegionWrap,CldServiceTypeWrap);          
+                }
+                
+                //prasenjeet
+
+        try
+        {
+            isEdit = true;
+            hybridProductWrap.add(opplclone);
+
+        }
+        catch(Exception ex)
+        {
+            system.debug('Clone exception thrown: '+ex.getMessage());
+            ApexPages.addmessage(new ApexPages.message(ApexPages.severity.ERROR,ex.getMessage()));
+
+        }
+    }
+    
+    
+       // change for CR-00135983 - replaced opportunity__c by opportunity_skip_validation__c.
+    
+    public static void skipValidationRule(Boolean flag){
+
+        opportunity_skip_validation__c tempSkipValidation = opportunity_skip_validation__c.getInstance();
+        
+        if(tempSkipValidation == null) {                                              /**  CR-00135983- by Saumya Ranjan     */                                
+           tempSkipValidation = new opportunity_skip_validation__c();
+        }
+        
+        if(flag){
+            tempSkipValidation.Skip_Validation_Expected_Close_Date__c = true;
+            upsert tempSkipValidation;
+        }else{
+            delete tempSkipValidation;
+        }
+     }
+     
+     //Siva Adapa - Salesfore casting Automation changes Start
+     public static PriceBookEntry snsProduct(boolean isLicenseProduct, string opptyCurrencyCode){
+        // Retrieving SNS Product fro the selected License Products
+            PriceBookEntry snsProductLine = new PriceBookEntry();
+            if(isLicenseProduct){
+                
+                SFA_PRM_Price_book_setting__c custompricebook = SFA_PRM_Price_book_setting__c.getInstance('SFA PRM Price Book');
+                    try{   
+                    snsProductLine = [Select Name,Id, Pricebook2Id,Product2Id, Product2.Name, Product2.Product_Group__c, CurrencyIsoCode,
+                                            Product2.Division__c,Product2.Platform_Group__c, Product2.Product_Platform__c, 
+                                            Product2.Services__c, Product2.Hybrid_Cloud__c,Product2.Family,Product2.Pipeline_Product_Group__c from PriceBookEntry 
+                                            where Product2.Family= :System.Label.SNS_Label AND IsActive = True AND CurrencyIsoCode =: opptyCurrencyCode AND
+                                            Pricebook2Id = :custompricebook.Price_Book_Id__c AND Product2.IsActive = True Limit 1 ];
+                    }
+                    catch(QueryException e){
+                        if(e.getMessage() =='List has no rows for assignment to SObject'){
+                            ApexPages.addMessage(new ApexPages.Message(ApexPages.Severity.ERROR,'Active TEMPSNS/SNS Product is not available to add for the Selected LICENSE Product. Request you to create an Active SNS Product and then add Oppotunity Products'));
+                        }
+                    }                   
+            }
+        return snsProductLine;
+    }
+    
+    public void snsBRAupdate(){
+        for(productSearchWrapper.addProduct licenseprodwrp : sddcProductWrap){
+            if(licenseprodwrp.oppLineItem.Id != null && licenseprodwrp.productFamily == System.Label.License_Label ){
+                for(productSearchWrapper.addProduct snsprodwrp : sddcProductWrap){
+                    if(snsprodwrp.productFamily == System.Label.SNS_Label && snsprodwrp.oppLineItem.VMStar_Product_Link_Id__c == licenseprodwrp.oppLineItem.VMStar_Product_Link_Id__c){
+                        snsprodwrp.oppLineItem.Before_Rebate_Amount__c = licenseprodwrp.oppLineItem.Before_Rebate_Amount__c;
+                        Decimal snsPercent = 0.0;
+                        if(snsprodwrp.oppLineItem.SNS_Percent__c != null){
+                            //snsPercent = (snsprodwrp.oppLineItem.SNS_Percent__c / 100).setScale(2);
+                            snsPercent = (snsprodwrp.oppLineItem.SNS_Percent__c / 100);
+                        }
+                        Integer sns = 0;
+                        if(snsprodwrp.oppLineItem.SNS__c != 'Other'){
+                            sns = integer.valueOf(snsprodwrp.oppLineItem.SNS__c.substring(0,1));
+                        }
+                        //snsprodwrp.oppLineItem.SNS_Amount__c =  (snsprodwrp.oppLineItem.Before_Rebate_Amount__c * sns * snsPercent).setScale(2);
+                        snsprodwrp.oppLineItem.SNS_Amount__c =  (snsprodwrp.oppLineItem.Before_Rebate_Amount__c * sns * snsPercent);
+                        snsprodwrp.oppLineItem.UnitPrice = snsprodwrp.oppLineItem.SNS_Amount__c;
+                        break;
+                    }
+                }
+                    licenseprodwrp.oppLineItem.Amount__c = licenseprodwrp.oppLineItem.Before_Rebate_Amount__c;
+                    licenseprodwrp.oppLineItem.UnitPrice = licenseprodwrp.oppLineItem.Before_Rebate_Amount__c;
+            }
+            else if(licenseprodwrp.oppLineItem.Id == null && licenseprodwrp.productFamily == System.Label.License_Label ){
+                licenseprodwrp.oppLineItem.Amount__c = licenseprodwrp.oppLineItem.Before_Rebate_Amount__c;
+                licenseprodwrp.oppLineItem.UnitPrice = licenseprodwrp.oppLineItem.Before_Rebate_Amount__c;
+                break;
+            }           
+        }   
+    }
+     //Siva Adapa - Salesfore casting Automation changes End  
+     //
+     public class addProductException extends Exception {}
+     
+    /***********************************************************************************************
+    Method Name: populateAssosciatedPlatformCBOOppty-CR-00143285
+    Description:  method to populate assosciate platform for cbo opportunity
+    @return: None
+    @throws: none
+    ***********************************************************************************************/ 
+    //CR-00143285 -Changes by Bhuvaneshwari for PICO Phase 2 
+     public void populateAssosciatedPlatformCBOOppty(){
+        Set<string> assProPlatfrmSet = new Set<String>();
+        List<PriceBookEntry> prcBookList=new List<PriceBookEntry>();
+        SFA_PRM_Price_book_setting__c custompricebook = SFA_PRM_Price_book_setting__c.getInstance('SFA PRM Price Book');
+        if(custompricebook!=null && (String.isNotBlank(custompricebook.Price_Book_Id__c))){
+            prcBookList=[Select Product2.Platform_Group__c,Product2Id, Product2.Services__c, Product2.Hybrid_Cloud__c from PriceBookEntry where IsActive =: true AND Product2.IsSFA_PRM_Product__c =: true AND Product2.Platform_Group__c != '' AND  Product2.Product_Platform__c != '' AND CurrencyISOCode =: opp.CurrencyISOCode  AND Pricebook2.IsActive =: true AND Pricebook2Id =:  custompricebook.Price_Book_Id__c AND priceBook2.isStandard = false order by Product2.Division__c];
+        }
+        if(prcBookList!=null && !prcBookList.isEmpty()){
+            for(PriceBookEntry prcBook:prcBookList){
+                if(prcBookList!=null && !prcBookList.isEmpty()){
+            // Modified below code  for CR-00135729
+                    if(OnOffSwitch__c.getInstance('HybridCloudcheck')!=NULL && OnOffSwitch__c.getInstance('HybridCloudcheck').Active__c){
+                        if(prcBook.Product2Id!=null && prcBook.product2.Platform_Group__c != null && prcBook.product2.Platform_Group__c != ''){
+                            assProPlatfrmSet.add(prcBook.product2.Platform_Group__c);
+                        }
+                    }
+                    else if(prcBook.Product2Id!=null && !prcBook.product2.Services__c && !prcBook.product2.Hybrid_Cloud__c && prcBook.product2.Platform_Group__c != null && prcBook.product2.Platform_Group__c != ''){
+                        assProPlatfrmSet.add(prcBook.product2.Platform_Group__c);   
+                    }
+                }
+            }
+        }
+        list<string> tempStrList = new list<String>();
+        tempAssoctPlatformOpt = new List<SelectOption>();
+        tempAssoctPlatformOpt.add(new SelectOption('','---None---'));
+        tempStrList.addAll(assProPlatfrmSet);
+        tempStrList.sort();
+        for(string str : tempStrList){
+            tempAssoctPlatformOpt.add(new SelectOption(str, str));
+        }
+         
+     }
+     //changes end for PICO -CR-00143285 
+
+    //CR-Saas-86 -Changes by Manish for SaaS Enablement
+    public PageReference populateServiceTypesProductPlatform() {
+        if(productPlaformValue != null){
+            PricebookEntry  priceBookEntry = [select id,product2.product_platform__c,product2.platform_group__c from pricebookentry where id = : productPlaformValue limit 1];
+            if(priceBookEntry != null){
+                list<SelectOption> CldServiceTypeWrap;
+                list<SelectOption> CldDatacenterRegionWrap;
+                list<string> Holder;
+                if(oppLineItemCounter != null && oppLineItemCounter != '')
+                    recordCounter = integer.valueOf(oppLineItemCounter);
+
+                if(recordCounter != null){
+                    CldServiceTypeWrap = new list<SelectOption>();
+                    CldDatacenterRegionWrap = new list<SelectOption>();
+                    productSearchWrapper.addProduct proWrap = hybridProductWrap.get(recordCounter);
+                    for(productSearchWrapper.addProduct prodwrp : hybridProductWrap){
+                        if(prodwrp.Counter == recordCounter){
+                            proWrap = prodwrp;
+                            String prodPlatform = priceBookEntry.product2.product_platform__c;
+                            String platformGroup = priceBookEntry.product2.platform_group__c;
+                            Map<String,Cloud_Platform_Group__c> CloudPicklistDepVal = Cloud_Platform_Group__c.getAll();
+                            for(string Platformgroupconfig: CloudPicklistDepVal.Keyset()){
+                                if(prodPlatform.EqualsIgnoreCase(Platformgroupconfig) || platformGroup.EqualsIgnoreCase(Platformgroupconfig)) {
+                                    if(CloudPicklistDepVal.get(Platformgroupconfig).Service_Type__c != null){
+                    proWrap.CldServiceType.clear();
+                                        CldServiceTypeWrap.add(new SelectOption('','-None-'));
+                                        Holder =new list<string>();
+                                        Holder = CloudPicklistDepVal.get(Platformgroupconfig).Service_Type__c.split(';');
+                                        for(String Val : Holder){
+                                            CldServiceTypeWrap.add(new SelectOption(Val,Val));
+                                        }
+                                    }
+                                    if(CloudPicklistDepVal.get(Platformgroupconfig).Datacenter_Region__c != null){
+                    proWrap.CldDatacenterRegion.clear();
+                                        CldDatacenterRegionWrap.add(new SelectOption('','-None-'));
+                                        Holder =new list<string>();
+                                        Holder = CloudPicklistDepVal.get(Platformgroupconfig).Datacenter_Region__c.split(';');
+                                        if(Holder != null){
+                                            for(String Val : Holder){
+                                                CldDatacenterRegionWrap.add(new SelectOption(Val,Val));
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            if(CloudoptyRecotypechk){
+                                if(CldServiceTypeWrap.isEmpty()){ 
+                                    CldServiceTypeWrap = CldServiceType;    
+                                }
+                            }
+                            if(CldDatacenterRegionWrap.isEmpty()){
+                                CldDatacenterRegionWrap = CldDatacenterRegion;  
+                            }
+                            productSearchWrapper.addProduct prod = proWrap;
+                            prod.MapdependentServiceTypeAndDatacenterRegion(CldDatacenterRegionWrap,CldServiceTypeWrap);
+                        }
+                    }
+                }
+            }
+        }
+    return null;
+    }
+    //changes end for CR-SaaS-86 SaaS Enablement
+ 
+}

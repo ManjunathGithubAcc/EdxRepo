@@ -1,0 +1,62 @@
+@isTest
+
+public class DNBILeadTriggerHelperTest2
+{
+    static testmethod void Test1()
+    {
+	
+		list<Record_Type_Settings__c> listRecord_Type_Settings= new list<Record_Type_Settings__c> ();
+            Record_Type_Settings__c Re1= new Record_Type_Settings__c (name= 'SFA_Acc_EC',currencyisocode= 'USD', app_type__c= 'SFA',object_type__c= 'Account',record_type_id__c= '01280000000B81DAAS',record_type_name__c= 'End Customer');
+            Record_Type_Settings__c Re2= new Record_Type_Settings__c (name= 'GSS_ACC_EC',currencyisocode= 'USD', app_type__c= 'GSS',object_type__c= 'Account',record_type_id__c= '01280000000B81DAAS',record_type_name__c= 'End Customer');
+            Record_Type_Settings__c Re3= new Record_Type_Settings__c (name= 'AWOpportunityRT',currencyisocode= 'USD', app_type__c= 'Airwatch',object_type__c= 'Opportunity',record_type_id__c= '0123400000045SuAAI',record_type_name__c= 'AirwatchOpportunity');
+            Record_Type_Settings__c Re4= new Record_Type_Settings__c (name= 'XUPSell_Manage_Sales_Oppty',currencyisocode= 'USD', app_type__c= 'SFA',object_type__c= 'Opportunity',record_type_id__c= '01280000000BY1F',record_type_name__c= 'Managed Sales Opportunity');
+            Record_Type_Settings__c Re5= new Record_Type_Settings__c (name= 'Deal_Management_AMER',currencyisocode= 'USD', app_type__c= 'SFA',object_type__c= 'Case',record_type_id__c= '01234000000Hq1tAAC',record_type_name__c= 'Deal Management AMER');
+            Record_Type_Settings__c Re6= new Record_Type_Settings__c (name= 'Deal_Management_APJ',currencyisocode= 'USD', app_type__c= 'SFA',object_type__c= 'Case',record_type_id__c= '01234000000GHDmAAO',record_type_name__c= 'Deal Management APJ');
+            Record_Type_Settings__c Re7= new Record_Type_Settings__c (name= 'Deal_Operations_EMEA',currencyisocode= 'USD', app_type__c= 'SFA',object_type__c= 'Case',record_type_id__c= '012800000004563AAA',record_type_name__c= 'Deal Operations EMEA');
+            Record_Type_Settings__c Re8= new Record_Type_Settings__c (name= 'PRM_Acc_MAL',currencyisocode= 'USD', app_type__c= 'PRM',object_type__c= 'Account',record_type_id__c= '01280000000B81EAAS',record_type_name__c= 'Master Account Layout');
+            Record_Type_Settings__c Re9= new Record_Type_Settings__c (name= 'PRM_Acc_PL',currencyisocode= 'USD', app_type__c= 'PRM',object_type__c= 'Account',record_type_id__c= '01280000000B81FAAS',record_type_name__c= 'Partner Location');
+            Record_Type_Settings__c Re10= new Record_Type_Settings__c (name= 'Lead_XSUS',currencyisocode= 'USD', app_type__c= 'XFire',object_type__c= 'Lead',record_type_id__c= '0123400000045RGAAY',record_type_name__c= 'XSUS Cross-Sell/Up-Sell -Renewals');
+            listRecord_Type_Settings.add(Re1);
+            listRecord_Type_Settings.add(Re3);
+            listRecord_Type_Settings.add(Re2);
+            listRecord_Type_Settings.add(Re4);
+            listRecord_Type_Settings.add(Re5);
+            listRecord_Type_Settings.add(Re6);
+            listRecord_Type_Settings.add(Re7);
+            listRecord_Type_Settings.add(Re8);
+            listRecord_Type_Settings.add(Re9);
+            listRecord_Type_Settings.add(Re10);
+            insert listRecord_Type_Settings;
+
+		
+		DNBI_Callout_Settings__c dcs = new DNBI_Callout_Settings__c();
+		insert dcs;
+			
+		Lead lead1 = new Lead();
+        lead1.FirstName = 'FirstName';
+        
+        lead1.LastName = 'LastName';
+        lead1.Email = 'first@last.com';
+        
+        lead1.Company = 'New Test Account 001';
+        lead1.Address_1__c = 'test';
+        lead1.Address_2__c = 'test';
+        lead1.City__c = 'SC';
+        lead1.State_Province__c = 'CA';
+        lead1.Country__c = 'INDIA';
+        lead1.Postal_Code__c = '95051';
+        lead1.Employees_Worldwide__c = '100';
+        lead1.of_Desktops__c='50';
+        lead1.of_Servers__c='190';
+        lead1.DULT__c = '567';
+        lead1.Record_Source__c = 'AW Eloqua';
+        lead1.PFST_Match_Reason__c = '157462698';
+        lead1.DUNS__c = 'test';
+        lead1.status = '0 New';
+        lead1.GEO__c = 'AMER';
+        lead1.is_locked__c = false;
+        lead1.XFire_Fiscal_Quarter__c = 'Q3';
+        lead1.XFire_Fiscal_Year__c = '2019';
+        insert lead1;
+    }
+}

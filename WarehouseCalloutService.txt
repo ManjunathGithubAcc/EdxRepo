@@ -1,0 +1,117 @@
+public with sharing class WarehouseCalloutService
+{
+
+    private static final String WAREHOUSE_URL = 'https://th-superbadge-apex.herokuapp.com/equipment';
+    
+    // complete this method to make the callout (using @future) to the
+    // REST endpoint and update equipment on hand.
+    @future(callout = TRUE)
+    public static void runWarehouseEquipmentSync()
+    {
+        Http http = new Http();
+        HttpRequest req = new HttpRequest();
+        req.setEndpoint(WAREHOUSE_URL);
+        req.setMethod('GET');
+        HttpResponse response = http.send(req);
+        
+        
+        List<Object> prodList = (List<Object>)JSON.deserializeUntyped(response.getBody());    
+        
+        List<Product2> produtsToUpdate = new List<Product2>();
+        
+        //Ext ID List
+        List<String> extIDList = new List<String>();
+        
+        //replacement
+        Map<String, Boolean> mapExtToReplacement = new Map<String, Boolean>();
+        
+        //quantity
+        Map<String, Integer> mapExtToQuantity = new Map<String, Integer>();
+        
+        //name
+        Map<String, String> mapExtToName = new Map<String, String>();
+        
+        //maintenanceperiod
+        Map<String, Integer> mapExtToMTP = new Map<String, Integer>();
+        
+        //lifespan
+        Map<String, Integer> mapExtToLS = new Map<String, Integer>();
+        
+        //cost
+        Map<String, Integer> mapExtToCost = new Map<String, Integer>();
+        
+        //sku
+        Map<String, String> mapExtToSKU = new Map<String, String>();
+        
+        if(response.getStatusCode() == 200)
+        {
+            for (Object o: prodList)
+            {
+                Map<String, Object> newObjMap = (Map<String, Object>)o;
+                
+                String extID = (String)newObjMap.get('_id');
+                
+                Boolean replacement = (Boolean)newObjMap.get('replacement');
+                mapExtToReplacement.put(extID, replacement);
+                
+                
+                Integer quantity = (Integer)newObjMap.get('quantity');
+                mapExtToQuantity.put(extID, quantity);
+                
+                
+                String name = (String)newObjMap.get('name');
+                mapExtToName.put(extID, name);
+                
+                
+                Integer mtp = (Integer)newObjMap.get('maintenanceperiod');
+                mapExtToMTP.put(extID, mtp);
+                
+                
+                Integer lifespan = (Integer)newObjMap.get('lifespan');
+                mapExtToLS.put(extID, lifespan);
+                
+                
+                Integer cost = (Integer)newObjMap.get('cost');
+                mapExtToCost.put(extID, cost);
+                
+                
+                String sku = (String)newObjMap.get('sku');
+                mapExtToSKU.put(extID, sku);
+                
+                extIDList.add(extID);
+            }
+        }
+        
+        else
+        {
+            System.debug('This failed');
+        }
+        
+        for(String s: extIDList)
+        {
+            System.debug('The Ext IDs are: '+s);
+        }
+        
+        List<Product2> newProdsList = [SELECT Replacement_Part__c, Current_Inventory__c, Name, Maintenance_Cycle__c, Lifespan_Months__c, Cost__c, StockKeepingUnit, Warehouse_SKU__c
+                                       FROM Product2 
+                                       WHERE Warehouse_SKU__c IN: extIDList];
+        
+        for(Product2 prod: newProdsList)
+        {
+            prod.Replacement_Part__c = mapExtToReplacement.get(prod.Warehouse_SKU__c);
+            
+            System.debug('The new vcalue for name os '+mapExtToName.get(prod.Warehouse_SKU__c));
+            
+            System.debug('The prod returned is '+prod.Name);
+            prod.Current_Inventory__c = mapExtToQuantity.get(prod.Warehouse_SKU__c);
+            prod.Name = mapExtToName.get(prod.Warehouse_SKU__c);
+            prod.Maintenance_Cycle__c = mapExtToMTP.get(prod.Warehouse_SKU__c);
+            prod.Lifespan_Months__c = mapExtToLS.get(prod.Warehouse_SKU__c);
+            prod.Cost__c = mapExtToCost.get(prod.Warehouse_SKU__c);
+            prod.StockKeepingUnit = mapExtToSKU.get(prod.Warehouse_SKU__c);
+            //produtsToUpdate.add(prod);
+        }
+        System.debug('The List size is '+newProdsList.size());
+        update newProdsList;
+    }
+}

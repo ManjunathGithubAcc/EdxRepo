@@ -1,0 +1,116 @@
+//**************************************************
+//Class Name:- CPQ_QuotetoOrder
+//Description:- 
+//Developer:- Nikhil/Swasti
+//************************Modification Log**********
+// 27 Aug 2018 : Manjunath S
+//**************************************************
+
+global class CPQ_QuotetoOrder
+{ 
+
+    @future(callout=true)
+    webservice static void fetchOrderScore(Id quoteId)
+    {   
+        String json2;
+        
+       List<SBQQ__Quote__c> quoteUpdateList = new List<SBQQ__Quote__c>();
+       List<QuotetoOrder> mainQuoteToOrder = new List<QuotetoOrder>();
+       List<QuotetoOrder.cls_orderHeader>  mainclsreq = new List<QuotetoOrder.cls_orderHeader>();
+        for(SBQQ__Quote__c  quote : [Select id, Name,CPQ_Support_Duration__c,CPQ_Reseller__r.Partner_ID__c,CPQ_Distributor__r.Partner_ID__c,CPQ_Reseller__r.Name, CPQ_Total_Deal_Size__c,SBQQ__ExpirationDate__c, Account_Name__c, 
+        SBQQ__Opportunity2__c, SBQQ__Opportunity2__r.Opportunity_ID__c, SBQQ__Account__r.Sales_Classification__c, 
+        CPQ_Specialist_Quote__c,SBQQ__Opportunity2__r.Account.Geo__c, SBQQ__Opportunity2__r.Account.Sub_Region__c,
+        CPQ_Account_Type__c, CPQ_Total_Deal_Score__c, (Select CPQ_SKU__c, SKU__c,SBQQ__NetTotal__c, SBQQ__Quantity__c, 
+        SBQQ__NetPrice__c, SBQQ__ProductFamily__c, CPQ_Discount_Class__c, SBQQ__Discount__c from SBQQ__LineItems__r), CPQ_SNS_Percent__c from SBQQ__Quote__c where id =: quoteId]) // Query changed on 27 Aug to include SBQQ__Discount__c and CPQ_SNS_Percent__c
+        {
+            
+            QuotetoOrder  obj = new QuotetoOrder();
+            QuotetoOrder.cls_orderDetail clsoredrdetails = new QuotetoOrder.cls_orderDetail();
+            QuotetoOrder.cls_orderHeader  clsreq = new QuotetoOrder.cls_orderHeader();
+
+            List<QuotetoOrder.cls_orderLine> singleorderlines1 = new List<QuotetoOrder.cls_orderLine>(); 
+            //QuotetoOrder.cls_orderLine singleorderline = new QuotetoOrder.cls_orderLine();
+            
+            QuotetoOrder.cls_orderLines  singleorderlines = new QuotetoOrder.cls_orderLines();
+      
+       QuotetoOrder.cls_attribute7  attrb = new QuotetoOrder.cls_attribute7();
+      attrb.attribute7 = 'CPQ Deal Modifier';
+      
+            integer count =1;
+            for(SBQQ__QuoteLine__c qline : quote.SBQQ__LineItems__r)
+            {
+                QuotetoOrder.cls_orderLine singleorderline = new QuotetoOrder.cls_orderLine();
+                
+                singleorderline.lineNumber=String.Valueof(count);
+                singleorderline.subType='Standard';
+                singleorderline.SKU = qline.SKU__c;
+                singleorderline.bookingQuantity=String.valueOf(qline.SBQQ__Quantity__c);
+                singleorderline.netUnitPrice=String.valueOf(qline.SBQQ__NetPrice__c);
+                singleorderline.lineTotal= String.ValueOf(qline.SBQQ__NetTotal__c);
+                singleorderline.SPFDiscPercent = String.ValueOf(qline.SBQQ__Discount__c); //Changed 27 Aug per Clarification Request for R1.1
+                singleorderline.productFamily=qline.SBQQ__ProductFamily__c;
+                singleorderline.discountClass=qline.CPQ_Discount_Class__c;
+                singleorderline.EMCDiscount='0.00';
+                count++;
+                singleorderlines1.add(singleorderline);
+            }
+             
+            singleorderlines.orderLine = singleorderlines1;
+            
+             
+            clsreq.quoteNumber = quote.Name;
+            clsreq.currency1='USD';
+            clsreq.customerPONumber = String.Valueof(quote.Name);
+            clsreq.endCustomer=quote.Account_Name__c;
+            clsreq.ELAEndDate='2022-06-07T07:00:00.000Z';
+            clsreq.attribute4='SPF';
+            clsreq.attribute5=String.valueOf(quote.SBQQ__ExpirationDate__c);
+            clsreq.attribute6=String.valueOf(quote.CPQ_Total_Deal_Size__c);
+			clsreq.attribute7 = attrb;
+			clsreq.attribute8 = String.ValueOf(quote.CPQ_Reseller__r.Name);
+            //public cls_attribute8 attribute8;
+			
+			//Below IF-ELSE changed 27 Aug per Clarification Request for R1.1
+			if(quote.CPQ_SNS_Percent__c != NULL)
+			{
+				clsreq.attribute13 = String.valueOf(quote.CPQ_SNS_Percent__c);
+			}
+			else
+			{
+				clsreq.attribute13 = '10.0';
+			}
+            
+            //public cls_attribute15 attribute15;
+            clsreq.attribute16=String.ValueOf(quote.CPQ_Support_Duration__c);
+            clsreq.attribute17='NO';
+            clsreq.attribute19=quote.SBQQ__Opportunity2__r.Opportunity_ID__c;
+            clsreq.isNewORAN='YES';
+            clsreq.snsNetOrList='List';
+            clsreq.emcDiscountFlag='NO';
+            clsreq.distiPRMID    =  quote.CPQ_Distributor__r.Partner_ID__c;
+            clsreq.resellerPRMID =  quote.CPQ_Reseller__r.Partner_ID__c;    
+            
+            clsoredrdetails.orderHeader = clsreq;
+            clsoredrdetails.orderLines = singleorderlines;
+            
+            obj.action = 'NEW';
+            obj.requestingUserEmailAddress = String.Valueof(UserInfo.getUserEmail());
+            obj.requestingUserFirstName = String.Valueof(UserInfo.getFirstName());
+            obj.requestingUserLastName = String.Valueof(UserInfo.getLastName());
+            obj.transactionReferenceNumber  = String.Valueof(System.Now());
+            obj.orderDetail = clsoredrdetails;
+            
+            json2=JSON.serialize(obj);
+            
+            String jsonreplaceString = json2.replace('"currency1":', '"currency":');
+
+            System.debug('########## jsonreplaceString ' + jsonreplaceString);  
+            String tokenId = CPQ_TokenID_ModelN.generateOAuthToken();
+            if(tokenId != null)
+            {
+                CPQ_getModelNResponse.getModelNResponse(tokenId,jsonreplaceString,quoteId);
+            }
+       }
+        //return true;
+    }
+}

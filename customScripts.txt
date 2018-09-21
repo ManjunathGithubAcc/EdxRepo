@@ -1,0 +1,436 @@
+var basePath = 'https://vmware--dev3.cs67.my.salesforce.com' + '/' 
+var quoteRestPath = basePath + 'services/apexrest/QuoteCalculatorRest'; 
+var flatRecords = {}; 
+
+function flattenRecords(quote, lines) 
+{
+	var quoteRecord = JSON.parse(JSON.stringify(quote.record)); 
+	for (var prop in quoteRecord)
+	{ 
+		if (prop.endsWith("__r"))
+		{ 
+		delete quoteRecord[prop] 
+		} 
+
+	} 
+
+	var lineDetails = []; 
+
+	for (var i = 0, count = lines.length; i < count; i++)
+	{ 
+	//deep clone the object - remove pointers to QLE data 
+	var iLineDetail = JSON.parse(JSON.stringify(lines[i].record)); 
+
+	//clean up related objects that won't deserialize cleanly 
+		for (var prop in iLineDetail)
+		{ 
+			if (prop.endsWith("__r"))
+			{ 
+			delete iLineDetail[prop] 
+			} 
+		}
+	lineDetails.push(iLineDetail); 
+	}
+	flatRecords.quote = quoteRecord; 
+	flatRecords.lines = lineDetails; 
+}
+
+// 
+// QCP 
+// 
+export function onInit(quoteLineModels, conn)
+{ 
+	return Promise.resolve();
+} 
+
+export function onBeforeCalculate(quote, lines, conn)
+{ 
+	console.log('@@ Record type id' + quote.record.RecordTypeId); 
+	console.log('@@ CPQ_SNS_Percent__c' + quote.record.CPQ_SNS_Percent__c); 
+
+	//CW-1858 start 
+	var isMoreThan100 = false; 
+
+	lines.forEach(function(line) { 
+	console.log('*** onBeforeCalculate Add disc = ' + line.record.SBQQ__Discount__c); 
+	if (line.record.SBQQ__Discount__c > 100)
+	{ 
+
+	isMoreThan100 = true; 
+	// break; 
+
+	} 
+
+	}); 
+
+	if (isMoreThan100)
+	{ 
+	//alert('Validation Error: Additional Discount can not be more than 100%.'); 
+	return Promise.reject('Validation Error: Additional Discount can not be more than 100%.'); 
+	} 
+	console.log('Crossed the more than 100 validation and now moving ahead' + isMoreThan100); 
+	//CW-1858 Ends here 
+
+	lines.forEach(function(line)
+	{ 
+
+	debugger; 
+	if (quote.record.CPQ_SNS_Pricing__c == '@List' && quote.record.RecordType.Name == 'Targeted Possibility' && quote.record.CPQ_SNS_Percent__c != 0 && quote.record.CPQ_SNS_Percent__c != null)
+	{ 
+	alert('For Targeted Possibility Quotes, SNS% field should be set to 0 when SnS Pricing Option is chosen as @List'); 
+	quote.record.CPQ_SNS_Percent__c = 0; 
+	} 
+
+	if (quote.record.RecordType.Name == 'Targeted Possibility' && line.record.SBQQ__Discount__c > 0 && line.record.CPQ_SKU_Type__c == 'SNS') { 
+	alert('Additional Discount cannot be more than zero for target possibility record type quotes'); 
+	return; 
+	} 
+
+	if (line.record.CPQ_SKU_Type__c == 'SNS') { 
+	line.record.SKU__c = ''; 
+	console.log('@@@ inside setting term'); 
+	/*if(quote.record.CPQ_Support_Duration__c == '' || quote.record.CPQ_Support_Duration__c == 'Other'){ 
+	line.record.SBQQ__SubscriptionTerm__c = quote.record.SBQQ__SubscriptionTerm__c; 
+	}else{	
+	line.record.SBQQ__SubscriptionTerm__c = quote.record.CPQ_Support_Duration__c * 12; 
+	}*/ 
+	console.log('@@@ line.record.SBQQ__SubscriptionTerm__c' + line.record.SBQQ__SubscriptionTerm__c); 
+	} 
+	}); 
+	console.log('Just before the quote.record.CPQ_SNS_Percent__c values is ::' + quote.record.CPQ_SNS_Percent__c); 
+	if (quote.record.CPQ_SNS_Percent__c != null)
+	{ 
+	console.log('inside @list'); 
+	lines.forEach(function(line)
+	{ 
+
+	if (line.record.CPQ_SKU_Type__c == 'SNS')
+	{ 
+	//line.record.SBQQ__ListPrice__c=0; 
+
+	console.log('@@@ list price change'); 
+	if (quote.record.CPQ_SNS_Pricing__c == '@List')
+	{ 
+	if (quote.record.RecordType.Name != 'Targeted Possibility')
+	{ 
+	line.record.SBQQ__Discount__c = quote.record.CPQ_SNS_Percent__c; 
+	} else
+	{ 
+	line.record.SBQQ__Discount__c = 0; 
+	} 
+	console.log('CPQ_Support_Duration__c ' + quote.record.CPQ_Support_Duration__c); 
+	if (quote.record.CPQ_Support_Duration__c == '' || quote.record.CPQ_Support_Duration__c == 'Other')
+	{ 
+	line.record.SBQQ__SubscriptionTerm__c = quote.record.SBQQ__SubscriptionTerm__c; 
+	} else
+	{ 
+	line.record.SBQQ__SubscriptionTerm__c = quote.record.CPQ_Support_Duration__c * 12; 
+	} 
+
+
+	} 
+	} 
+
+	}); 
+	} else
+	{ 
+	lines.forEach(function(line)
+	{ 
+
+	if (line.record.CPQ_SKU_Type__c == 'SNS')
+	{ 
+		line.record.SBQQ__ListPrice__c = 0; 
+		line.record.SKU__c = ''; 
+		console.log('@@@ list price change 2'); 
+		if (quote.record.CPQ_SNS_Pricing__c == '@List')
+		{ 
+			if (quote.record.CPQ_Support_Duration__c == '' || quote.record.CPQ_Support_Duration__c == 'Other')
+			{ 
+			line.record.SBQQ__SubscriptionTerm__c = quote.record.SBQQ__SubscriptionTerm__c; 
+			} 
+			else
+			{ 
+			line.record.SBQQ__SubscriptionTerm__c = quote.record.CPQ_Support_Duration__c * 12; 
+			} 
+		} 
+	} 
+
+	}); 
+	} 
+	console.log('Before Calcualte Completed 2'); 
+	return new Promise(function(resolve, reject)
+	{ 
+	resolve(); 
+	}) 
+} 
+
+
+export function onAfterCalculate(quote, lines, conn)
+{ 
+	debugger; 
+
+	lines.forEach(function(line) { 
+	console.log('@@ CPQ_SNS_Percent__c' + quote.record.CPQ_SNS_Percent__c); 
+	console.log('@@ line.record.CPQ_SKU_Type__c ==> ' + line.record.CPQ_SKU_Type__c); 
+	console.log('@@ quote.record.CPQ_SNS_Pricing__c ==> ' + quote.record.CPQ_SNS_Pricing__c); 
+	if (quote.record.CPQ_SNS_Percent__c != null)
+	{ 
+		console.log('@@@ inside @net'); 
+		if (line.record.CPQ_SKU_Type__c == 'SNS')
+		{ 
+			if (quote.record.CPQ_SNS_Pricing__c == '@Net')
+			{ 
+				console.log('line.record.SBQQ__DistributorDiscount__c ====> ' + line.record.SBQQ__DistributorDiscount__c); 
+				line.record.SBQQ__PartnerDiscount__c = ''; 
+				line.record.SBQQ__DistributorDiscount__c = ''; 
+				line.record.CPQ_Distributor_Discount__c = ''; 
+				line.record.CPQ_AD_Disc__c = ''; 
+				//Gauravline.record.SBQQ__SubscriptionTerm__c = quote.record.CPQ_Support_Duration__c * 12; 
+				var promultiplier = line.record.SBQQ__ProrateMultiplier__c > 0 && line.record.SBQQ__ProrateMultiplier__c != null ? line.record.SBQQ__ProrateMultiplier__c : 1; 
+				var promultiplier = 1; 
+				console.log("promultiplier " + promultiplier); 
+				console.log("CPQ_Distributor_Net_Price__c " + line.record.SBQQ__RequiredBy__r.CPQ_Distributor_Net_Price__c); 
+				/*** Rajat commented below line for CW-2185 ***/ 
+				//var netUnitPriceSNS = (quote.record.CPQ_SNS_Percent__c / 100) * (line.record.SBQQ__RequiredBy__r.CPQ_Distributor_Net_Price__c / promultiplier); 
+				/*** Rajat -- > Net Unit Price Calculation according to CW-2185 START ***/ 
+				var netUnitPriceSNS = (promultiplier * line.record.SBQQ__RequiredBy__r.CPQ_Distributor_Net_Price__c); 
+				/*** Rajat -- > Net Unit Price Calculation according to CW-2185 END ***/ 
+				console.log('@@@ netUnitPriceSNS before' + netUnitPriceSNS); 
+				if (quote.record.CPQ_Support_Duration__c == 'Other')
+				{ 
+				netUnitPriceSNS = netUnitPriceSNS * (quote.record.SBQQ__SubscriptionTerm__c / 12); 
+				}
+				else
+				{ 
+				netUnitPriceSNS = netUnitPriceSNS * quote.record.CPQ_Support_Duration__c; 
+				} 
+
+			console.log('@@@ netUnitPriceSNS after' + netUnitPriceSNS); 
+			// var netUnitPriceSNS = (1-quote.record.CPQ_SNS_Percent__c/100) * line.record.SBQQ__RequiredBy__r.SBQQ__NetPrice__c; 
+				if (quote.record.RecordType.Name != 'Targeted Possibility')
+				{ 
+				/*** Rajat commented below line for CW-2185 ***/ 
+				//line.record.SBQQ__Discount__c = 100 * (line.record.SBQQ__ListPrice__c - netUnitPriceSNS) / line.record.SBQQ__ListPrice__c; 
+				/*** Rajat -- > Additional Discount Calculation according to CW-2185 START ***/ 
+				line.record.SBQQ__Discount__c = 100 * (((line.record.SBQQ__ListPrice__c * promultiplier) - (promultiplier * line.record.SBQQ__RequiredBy__r.CPQ_Distributor_Net_Price__c)) / (line.record.SBQQ__ListPrice__c * promultiplier)) 
+				/*** Rajat -- > Additional Discount Calculation according to CW-2185 END ***/ 
+				}
+					
+				//line.record.SBQQ__Discount__c = 100 * (line.record.SBQQ__ListTotal__c - line.record.SBQQ__NetTotal__c) / line.record.SBQQ__ListTotal__c; 
+				//line.record.SBQQ__CustomerPrice__c = netUnitPriceSNS * (1 - line.record.SBQQ__Discount__c) * line.record.SBQQ__ProrateMultiplier__c; 
+				line.record.SBQQ__CustomerPrice__c = netUnitPriceSNS; 
+				line.record.SBQQ__PartnerPrice__c = netUnitPriceSNS; 
+				line.record.SBQQ__NetPrice__c = netUnitPriceSNS; 
+				line.record.CPQ_Distributor_Net_Price__c = netUnitPriceSNS; 
+				line.record.CPQ_Total_Effective_Discount__c = ((line.record.SBQQ__ListTotal__c - netUnitPriceSNS) / line.record.SBQQ__ListTotal__c) * 100; 
+				} 
+		} 
+
+	} 
+	}); 
+
+	return new Promise(function(resolve, reject)
+	{
+		adPlusDiscount(quote, lines, conn) 
+		.then(function(response)
+		{ 
+		console.log('response', response); 
+		//todo - loop through response, create map (equivalent) based on line number 
+		var lineMap = {}; 
+		response.forEach(function(resp)
+		{ 
+		lineMap[resp.SBQQ__Number__c] = resp; 
+		}) 
+		// { 1 : {LineObject}, 2: {LineObject}} 
+		lines.forEach(function(line) { 
+		line.record.SBQQ__PartnerDiscount__c = lineMap[line.record.SBQQ__Number__c].SBQQ__PartnerDiscount__c; 
+
+		line.record.CPQ_AD_Disc__c = lineMap[line.record.SBQQ__Number__c].CPQ_AD_Disc__c; 
+		console.log('line', line.record); 
+		}); 
+
+		resolve(); 
+		}, function(err) { 
+		console.log('err', err); 
+		reject(err); 
+		}); 
+	})
+} 
+
+// 
+// PSP 
+// 
+// export function isFieldVisible(fieldName, line) { 
+// } 
+export function isFieldEditable(fieldName, line, conn)
+{
+	//if(line.SKU__c !=''){ 
+	if (fieldName == 'SBQQ__Quantity__c')
+	{
+	return true 
+	} 
+	else if (fieldName == 'SBQQ__AdditionalDiscount__c')
+	{ 
+	return true 
+	}
+	else if (fieldName == 'SBQQ__Discount__c')
+	{ 
+	return true 
+	}
+	else if (fieldName == 'SBQQ__AdditionalDiscountAmount__c')
+	{ 
+	return true 
+	}
+	else if (fieldName == 'CPQSupportSKU__c' && line.CPQ_SKU_Type__c != 'License')
+	{ 
+	return true 
+	}
+	else
+	{ 
+	return false 
+	} 
+	//	} 
+	return null;
+} 
+
+
+var adPlusDiscount = function(quote, lines, conn)
+{ 
+	return new Promise(function(resolve, reject) {
+	flattenRecords(quote, lines); 
+	console.log('flatRecords', flatRecords); 
+	conn.requestPost(quoteRestPath, { 
+	quoteDetail: flatRecords.quote, 
+	lineDetails: flatRecords.lines 
+	}) 
+	.then(function(response) { 
+	debugger; 
+	var recs = JSON.parse(response); 
+	resolve(recs); 
+	}, function(err) { 
+	reject(err); 
+	}); 
+	});
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+//#################################################################//
+//QuoteLineCalculator12//
+
+
+var basePath = 'https://vmware--DEV3.cs67.my.salesforce.com' + '/'; 
+var quoteRestPath = basePath + 'services/apexrest/QuoteCalculatorRest'; 
+var flatRecords = {}; 
+
+function flattenRecords(quote, lines)
+{
+	var quoteRecord = JSON.parse(JSON.stringify(quote.record)); 
+	for(var prop in quoteRecord)
+	{ 
+		if(prop.endsWith("__r")){ 
+		delete quoteRecord[prop] 
+		} 
+	} 
+
+	var lineDetails = []; 
+
+	for(var i=0, count=lines.length; i<count; i++)
+	{
+		//deep clone the object - remove pointers to QLE data 
+		var iLineDetail = JSON.parse(JSON.stringify(lines[i].record)); 
+
+		//clean up related objects that won't deserialize cleanly 
+		for(var prop in iLineDetail)
+		{ 
+			if(prop.endsWith("__r")){ 
+			delete iLineDetail[prop] 
+			} 
+		} 
+		lineDetails.push(iLineDetail); 
+	} 
+	flatRecords.quote = quoteRecord; 
+	flatRecords.lines = lineDetails; 
+} 
+
+// 
+// QCP 
+// 
+export function onInit(quoteLineModels, conn)
+{ 
+return Promise.resolve(); 
+}
+
+export function onAfterCalculate(quote, lines, conn)
+{ 
+debugger; 
+
+lines.forEach( function(line)
+{ 
+if(line.record.CPQ_SKU_Type__c == 'SNS')
+{ 
+if(quote.record.CPQ_SNS_Pricing__c == '@List')
+{ 
+line.record.SBQQ__Discount__c = quote.record.CPQ_SNS_Percent__c; 
+}
+else if(quote.record.CPQ_SNS_Pricing__c == '@Net')
+{ 
+var netUnitPriceSNS = (1-quote.record.CPQ_SNS_Percent__c/100) * line.record.SBQQ__RequiredBy__r.CPQ_Distributor_Net_Price__c; 
+// var netUnitPriceSNS = (1-quote.record.CPQ_SNS_Percent__c/100) * line.record.SBQQ__RequiredBy__r.SBQQ__NetPrice__c; 
+line.record.SBQQ__Discount__c = (line.record.SBQQ__ListPrice__c - netUnitPriceSNS)/line.record.SBQQ__ListPrice__c; 
+} 
+} 
+}); 
+
+return new Promise( function(resolve, reject)
+{
+adPlusDiscount(quote, lines, conn) 
+.then( function(response){ 
+console.log('response', response); 
+//todo - loop through response, create map (equivalent) based on line number 
+var lineMap = {}; 
+response.forEach( function(resp){ 
+lineMap[resp.SBQQ__Number__c] = resp; 
+}) 
+// { 1 : {LineObject}, 2: {LineObject}} 
+lines.forEach( function(line){ 
+line.record.SBQQ__PartnerDiscount__c = lineMap[line.record.SBQQ__Number__c].SBQQ__PartnerDiscount__c; 
+console.log('line', line.record); 
+}); 
+
+resolve(); 
+}, function(err){ 
+console.log('err', err); 
+reject(err); 
+}); 
+}) 
+} 
+
+
+var adPlusDiscount = function(quote, lines, conn){ 
+return new Promise( function(resolve, reject){ 
+flattenRecords(quote, lines); 
+console.log('flatRecords', flatRecords); 
+console.log('quoteRestPath', quoteRestPath); 
+console.log('lineDetails', lineDetails); 
+console.log(lineDetails); 
+conn.requestPost(quoteRestPath, { quoteDetail: flatRecords.quote, lineDetails: flatRecords.lines }) 
+.then( function(response){ 
+debugger; 
+var recs = JSON.parse(response); 
+resolve(recs); 
+}, function(err){ 
+reject(err); 
+}); 
+}); 
+}

@@ -1,0 +1,66 @@
+//**************************************************
+//Class Name:- QuotetoOrder
+//Description:- 
+//Developer:- Nikhil
+//**************************************************
+
+public class QuotetoOrder{
+    public String action;   //New
+    public String requestingUserEmailAddress;   //svudhya@vmware.com.mn
+    public String requestingUserFirstName;  //Sunder
+    public String requestingUserLastName;   //Vudhya
+    public String transactionReferenceNumber;   //86184878742093_1526456094910
+    public cls_orderDetail orderDetail;
+   public class cls_orderDetail {
+        public cls_orderHeader orderHeader;
+        public cls_orderLines orderLines;
+    }
+   public class cls_orderHeader {
+        public String quoteNumber;  //18JUNQ_1
+        public String currency1; //USD
+        public String customerPONumber; //18JUNPO_1
+        public String endCustomer;  //Byram Healthcare Centers
+        public String ELAEndDate;   //2022-06-07T07:00:00.000Z
+        public String attribute4;   //ELA
+        public String attribute5;   //20180804 065959
+        public String attribute6;   //857486.1
+        public cls_attribute7 attribute7;
+        public cls_attribute8 attribute8;
+        public String attribute13;  //10.0
+        public cls_attribute15 attribute15;
+        public String attribute16;  //1.0
+        public String attribute17;  //NO
+        public String attribute19;  //10612936
+        public String isNewORAN;    //YES
+        public String snsNetOrList; //List
+        public String emcDiscountFlag;  //NO
+    }
+    public class cls_attribute7 {
+    public String attribute7;
+    }
+    public class cls_attribute8 {
+    }
+    public class cls_attribute15 {
+    }
+    public class cls_orderLines {
+        public cls_orderLine[] orderLine;
+    }
+    public class cls_orderLine {
+        public String lineNumber;   //1
+        public String subType;  //Standard
+        public String SKU;  //VSP-EPLM-AK-C
+        public String bookingQuantity;  //1
+        public String netUnitPrice; //3750
+        public String lineTotal;    //3750
+        public String SPFDiscPercent;   //0.0
+        public String productFamily;    //VI5-VSPHERE
+        public String discountClass;    //Perpetual
+        public String EMCDiscount;  //0.00
+    }
+    public static QuotetoOrder parse(String json){
+        return (QuotetoOrder) System.JSON.deserialize(json, QuotetoOrder.class);
+    }
+
+  
+    
+}

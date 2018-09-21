@@ -1,0 +1,568 @@
+//*****************************************************************************************
+// Name             : setDiscountValue.cls
+// Description      : Calculate the PerpetualBlendedDiscount,TotalBlended and Blended Additional Discount
+// Created By       : Vmware
+// Developed By     : Swasti MOhapatra
+// Created Date     : 06/29/2013
+// ************************************************************************************
+//************************Modification Log*********************************************
+//10/07/2018       Nikhil Rao         Changes made for CW-1047
+//*************************************************************************************
+//8/8/2018         Manjunath S        Changes made for CW-1513
+//*************************************************************************************
+
+public class setDiscountValue
+{
+
+    public static void setBlendedPerpetualDeiscount(Set<Id> quoteId)
+    {
+        Decimal numperpetualBlended = 0.0;
+        Decimal denoperpetualBlended = 0.0;
+        Decimal numtotalblended= 0.0;
+        Decimal dentotalblended = 0.0;
+        Decimal numblendedadditional = 0.0;
+        Decimal denoblendedadditional = 0.0;
+        Decimal numSubcriptionBlended = 0.0; //Added for CW-1047
+        Decimal denoSubcriptionBlended = 0.0; //Added for CW-1047
+        Decimal numBlendedSaasSDPDisc = 0.0; //Added for CW-1513
+        Decimal denBlendedSaasSDPDisc = 0.0; //Added for CW-1513
+        Decimal numBlendedAwSaasDisc = 0.0;  //Added for CW-1513
+        Decimal denBlendedAwSaasDisc = 0.0;  //Added for CW-1513    
+        Decimal numVfabricTermdisc = 0.0;  //Added for CW-1513
+        Decimal denVfabricTermdiscount = 0.0;  //Added for CW-1513
+        Decimal numHorizonairsubscription = 0.0; //Added for CW-1513
+        Decimal denHorizonairsubscription = 0.0; //Added for CW-1513
+        Decimal numPivotalPerpetualDisc = 0.0; //Added for CW-1513
+        Decimal denPivotalPerpetualDisc = 0.0; //Added for CW-1513
+        Decimal numPivotalTermDisc = 0.0; //Added for CW-1513
+        Decimal denPivotalTermDisc = 0.0; //Added for CW-1513
+        Integer countAirwatchTermFlag = 0; //Added for CW-1513
+        Integer countSocialCastTermFlag = 0; //Added for CW-1513
+        Integer countIOTPrepetualDiscount =0; //Added for CW-1513
+        Boolean pivotalPerpetualDiscountFlag = false; //Added for CW-1513
+        
+        List<SBQQ__Quote__c> mainUpdateQuote = new List<SBQQ__Quote__c>();
+        for(SBQQ__QuoteLine__c  objquoteline : [Select id,Name ,CPQ_SKU_Type__c,CPQ_Discount_Class__c,SBQQ__Discount__c,
+                                                SBQQ__AdditionalDiscount__c,SBQQ__Product__r.CPQ_PDH_Product_Family__c,CPQ_Total_Effective_Discount__c,SBQQ__NetTotal__c, SBQQ__Product__c 
+                                                from SBQQ__QuoteLine__c where SBQQ__Quote__c in :quoteId])
+        {   
+            if(objquoteline.CPQ_Discount_Class__c == 'Perpetual')
+            {
+                if(objquoteline.SBQQ__NetTotal__c != null && objquoteline.CPQ_Total_Effective_Discount__c != null)
+                {
+                    numperpetualBlended = numperpetualBlended + objquoteline.CPQ_Total_Effective_Discount__c * objquoteline.SBQQ__NetTotal__c;
+                    denoperpetualBlended = denoperpetualBlended  + objquoteline.SBQQ__NetTotal__c;
+                }
+            }
+            
+            if(objquoteline.CPQ_Discount_Class__c != null)
+            {
+                if(objquoteline.SBQQ__NetTotal__c != null && objquoteline.CPQ_Total_Effective_Discount__c != null)
+                {
+                    
+                    if(objquoteline.CPQ_Total_Effective_Discount__c!=null && objquoteline.SBQQ__NetTotal__c!=null)
+                    {
+                        numtotalblended = numtotalblended + objquoteline.CPQ_Total_Effective_Discount__c * objquoteline.SBQQ__NetTotal__c;
+                        dentotalblended = dentotalblended  + objquoteline.SBQQ__NetTotal__c;
+                    }
+                    if(objquoteline.SBQQ__Discount__c !=null && objquoteline.SBQQ__NetTotal__c!=null)
+                    { 
+                        numblendedadditional = numblendedadditional + objquoteline.SBQQ__AdditionalDiscount__c * objquoteline.SBQQ__NetTotal__c;
+                        denoblendedadditional = denoblendedadditional  + objquoteline.SBQQ__NetTotal__c;
+                    }
+                }
+                
+            }
+            //Start - Nikhil - CW 1047
+            if(objquoteline.CPQ_Discount_Class__c == 'Subscription')
+            {
+                if(objquoteline.SBQQ__NetTotal__c != null && objquoteline.CPQ_Total_Effective_Discount__c != null)
+                {
+                    numSubcriptionBlended = numSubcriptionBlended + objquoteline.CPQ_Total_Effective_Discount__c * objquoteline.SBQQ__NetTotal__c;
+                    denoSubcriptionBlended = denoSubcriptionBlended  + objquoteline.SBQQ__NetTotal__c;
+                }
+            }
+            //End - Nikhil - CW 1047
+            if(objquoteline.CPQ_SKU_Type__c=='SNS')
+            {
+                if(objquoteline.SBQQ__NetTotal__c!=null)
+                    {
+                        denoblendedadditional = denoblendedadditional  + objquoteline.SBQQ__NetTotal__c;
+                    }
+
+            }
+            
+            //Start CW-1513
+            //CW-1513 Discount for SaaS Discount Class and ANY Product Family //CW-1513 CPQ_PDH_Product_Family__c
+            if(objquoteline.CPQ_Discount_Class__c == 'SaaS' && (objquoteline.SBQQ__Product__r.CPQ_PDH_Product_Family__c != '' || objquoteline.SBQQ__Product__r.CPQ_PDH_Product_Family__c != NULL))
+            {
+                if(objquoteline.SBQQ__NetTotal__c != null && objquoteline.CPQ_Total_Effective_Discount__c != null)
+                {
+                    numBlendedSaasSDPDisc = numBlendedSaasSDPDisc + objquoteline.CPQ_Total_Effective_Discount__c * objquoteline.SBQQ__NetTotal__c;
+                    denBlendedSaasSDPDisc = denBlendedSaasSDPDisc  + objquoteline.SBQQ__NetTotal__c;
+                }
+            }
+            
+            //CW-1513 Discount for AWSaaS Discount Class and ANY Product Family //CW-1513
+            if(objquoteline.CPQ_Discount_Class__c == 'AwSaaS' && (objquoteline.SBQQ__Product__r.CPQ_PDH_Product_Family__c != '' || objquoteline.SBQQ__Product__r.CPQ_PDH_Product_Family__c != NULL))
+            {
+                if(objquoteline.SBQQ__NetTotal__c != null && objquoteline.CPQ_Total_Effective_Discount__c != null)
+                {
+                    numBlendedAwSaasDisc = numBlendedAwSaasDisc + objquoteline.CPQ_Total_Effective_Discount__c * objquoteline.SBQQ__NetTotal__c;
+                    denBlendedAwSaasDisc = denBlendedAwSaasDisc  + objquoteline.SBQQ__NetTotal__c;  
+                }
+            }
+            
+            //CW-1513 Discount for Subscription Discount Class and vFabric Product Family //CW-1513
+            if(objquoteline.CPQ_Discount_Class__c == 'Subscription' && objquoteline.SBQQ__Product__r.CPQ_PDH_Product_Family__c == 'vFabric')
+            {
+                if(objquoteline.SBQQ__NetTotal__c != null && objquoteline.CPQ_Total_Effective_Discount__c != null)
+                {
+                    numVfabricTermdisc = numVfabricTermdisc + objquoteline.CPQ_Total_Effective_Discount__c * objquoteline.SBQQ__NetTotal__c;
+                    denVfabricTermdiscount = denVfabricTermdiscount + objquoteline.SBQQ__NetTotal__c;   
+                }
+            }
+            
+            //CW-1513 Discount for Subscription Discount Class and Horizonair Product Family //CW-1513
+            if(objquoteline.CPQ_Discount_Class__c == 'Subscription' && objquoteline.SBQQ__Product__r.CPQ_PDH_Product_Family__c == 'Horizon')
+            {
+                if(objquoteline.SBQQ__NetTotal__c != null && objquoteline.CPQ_Total_Effective_Discount__c != null)
+                {
+                    numHorizonairsubscription = numHorizonairsubscription + objquoteline.CPQ_Total_Effective_Discount__c * objquoteline.SBQQ__NetTotal__c;
+                    denHorizonairsubscription = denHorizonairsubscription + objquoteline.SBQQ__NetTotal__c; 
+                }
+            }
+            
+            //CW-1513 Discount for Subscription Discount Class and Pivotal Product Family //CW-1513
+            if(objquoteline.CPQ_Discount_Class__c == 'Subscription' && objquoteline.SBQQ__Product__r.CPQ_PDH_Product_Family__c == 'Pivotal')
+            {
+                pivotalPerpetualDiscountFlag = true;
+                if(objquoteline.SBQQ__NetTotal__c != null && objquoteline.CPQ_Total_Effective_Discount__c != null)
+                {
+                    numPivotalTermDisc = numPivotalTermDisc + objquoteline.CPQ_Total_Effective_Discount__c * objquoteline.SBQQ__NetTotal__c;
+                    denPivotalTermDisc = denPivotalTermDisc + objquoteline.SBQQ__NetTotal__c;
+                }
+            }           
+            
+                    
+            //CW-1513 Discount for Perpetual Discount Class and Pivotal Product Family //CW-1513
+            if(objquoteline.CPQ_Discount_Class__c == 'Perpetual' && objquoteline.SBQQ__Product__r.CPQ_PDH_Product_Family__c == 'Pivotal')
+            {
+                pivotalPerpetualDiscountFlag = true;
+                if(objquoteline.SBQQ__NetTotal__c != null && objquoteline.CPQ_Total_Effective_Discount__c != null)
+                {
+                    numPivotalPerpetualDisc = numPivotalPerpetualDisc + objquoteline.CPQ_Total_Effective_Discount__c * objquoteline.SBQQ__NetTotal__c;
+                    denPivotalPerpetualDisc = denPivotalPerpetualDisc + objquoteline.SBQQ__NetTotal__c;
+                }
+            }
+            
+            //CW-1513 AirwatchTermFlag ProductFamily=Airwatch and DiscountClass=Subscription //CW-1513 
+            if(objquoteline.CPQ_Discount_Class__c == 'Subscription' && objquoteline.SBQQ__Product__r.CPQ_PDH_Product_Family__c == 'Airwatch')
+            {
+                countAirwatchTermFlag++;
+            }
+            
+            //CW-1513 SocialCastTermFlag Set True if  SKUs having ProductFamily=SocialCast and DiscountClass=Subscription. //CW-1513 
+            if(objquoteline.CPQ_Discount_Class__c == 'Subscription' && objquoteline.SBQQ__Product__r.CPQ_PDH_Product_Family__c == 'SocialCast')
+            {
+                countSocialCastTermFlag++;
+            }
+            //CW-1513 IOTPrepetualDiscount Set True if  SKUs having ProductFamily=IOT and DiscountClass=Perpetual. //CW-1513 
+            if(objquoteline.CPQ_Discount_Class__c == 'Perpetual' && objquoteline.SBQQ__Product__r.CPQ_PDH_Product_Family__c == 'IOT')
+            {
+                countIOTPrepetualDiscount++;
+            }
+            //End CW-1513
+            
+        }
+        System.debug('############### test data numperpetualBlended ' + numperpetualBlended);
+        System.debug('############### test data denoperpetualBlended ' + denoperpetualBlended);
+        for(SBQQ__Quote__c  objSbq : [Select id,Name,CPQ_Subscription_Blended_Discount__c,CPQ_Perpetual_Blended_Discount__c,
+        CPQ_Total_Blended_Disc__c,CPQ_Blended_Additional_Discount__c from SBQQ__Quote__c where id in : quoteId])
+        {
+                SBQQ__Quote__c  quote = new SBQQ__Quote__c(id=objSbq.id);
+                if(numperpetualBlended != 0.0 && numperpetualBlended != 0.0 )
+                {
+                     quote.CPQ_Perpetual_Blended_Discount__c    = numperpetualBlended/denoperpetualBlended ;
+                    
+                }
+                if(numtotalblended != 0.0 && dentotalblended != 0.0)
+                {
+                     quote.CPQ_Total_Blended_Disc__c            = numtotalblended/dentotalblended ;
+                }
+                if(numblendedadditional != 0.0 && denoblendedadditional != 0.0)
+                {
+                     quote.CPQ_Blended_Additional_Discount__c            = numblendedadditional/denoblendedadditional ;
+                }
+                //Start - Nikhil - CW 1047
+                if(numSubcriptionBlended != 0.0 && denoSubcriptionBlended != 0.0 )
+                {
+                     quote.CPQ_Subscription_Blended_Discount__c = numSubcriptionBlended/denoSubcriptionBlended ;
+                    
+                }
+                //End - Nikhil - CW 1047
+                
+                //Start - CW-1513 
+                //Check if the discount for SaaS is not 0 or 0/0 AND update CPQ_BlendedSaasSDPDisc__c //CW-1513
+                if (numBlendedSaasSDPDisc != 0.0 && denBlendedSaasSDPDisc != 0.0)
+                {
+                    quote.CPQ_BlendedSaasSDPDisc__c = numBlendedSaasSDPDisc/denBlendedSaasSDPDisc;
+                }
+                
+                //Check if the discount for AWSaaS is not 0 or 0/0 AND update CPQ_BlendedAwSaasDisc__c //CW-1513
+                if (numBlendedAwSaasDisc != 0.0 && denBlendedAwSaasDisc != 0.0)
+                {
+                    quote.CPQ_BlendedAwSaasDisc__c = numBlendedAwSaasDisc/denBlendedAwSaasDisc;
+                }
+                
+                if (numVfabricTermdisc != 0 && denVfabricTermdiscount != 0)
+                {
+                    quote.VfabricTermdiscount__c = numVfabricTermdisc/denVfabricTermdiscount;
+                }               
+                
+                if (numHorizonairsubscription != 0 && denHorizonairsubscription != 0)
+                {
+                    quote.CPQ_Horizonairsubscription__c = numHorizonairsubscription/denHorizonairsubscription;
+                }
+                
+                if (numPivotalPerpetualDisc != 0 && denPivotalPerpetualDisc != 0)
+                {
+                    quote.CPQ_PivotalPerpetualDiscount__c = numPivotalPerpetualDisc/denPivotalPerpetualDisc;
+                }
+                
+                if (numPivotalPerpetualDisc == 0 && denPivotalPerpetualDisc != 0 && pivotalPerpetualDiscountFlag == true)
+                {
+                    quote.CPQ_PivotalPerpetualDiscount__c = 0.0;
+                }
+                
+                if (numPivotalTermDisc != 0 && denPivotalTermDisc != 0)
+                {
+                    quote.CPQ_PivotalTermDiscount__c = numPivotalTermDisc/denPivotalTermDisc;
+                }
+                
+                if(countAirwatchTermFlag > 0) 
+        {
+          quote.CPQ_AirwatchTermFlag__c = TRUE; 
+        }
+                
+                if(countSocialCastTermFlag > 0)
+        {
+          quote.CPQ_SocialCastTermFlag__c = TRUE; 
+        }
+                
+                if(countIOTPrepetualDiscount > 0)
+        {
+          quote.CPQ_IOTPrepetualDiscount__c = TRUE;
+        }
+                
+                //End CW-1513 
+                mainUpdateQuote.add(quote);
+        
+        }
+        System.debug('mainUpdateQuote:- ' + mainUpdateQuote);
+        if(!mainUpdateQuote.IsEmpty())
+        {
+      update mainUpdateQuote;
+    }
+        
+    }
+    
+    public static void setDeletedBlendedPerpetualDeiscount(Set<Id> quoteId,Set<Id> QuoteLineIds)
+    {
+        Decimal numerator = 0.0;
+        Decimal denominator = 0.0;
+        Decimal numerator1 = 0.0;
+        Decimal denominator1 = 0.0;
+        
+        Decimal numerator2 = 0.0;
+        Decimal denominator2 = 0.0;
+        Decimal numSubcriptionBlended = 0.0; //Added for CW-1047
+        Decimal denoSubcriptionBlended = 0.0; //Added for CW-1047
+        Decimal numBlendedSaasSDPDisc = 0.0; //Added for CW-1513
+        Decimal denBlendedSaasSDPDisc = 0.0; //Added for CW-1513
+        Decimal numBlendedAwSaasDisc = 0.0;  //Added for CW-1513
+        Decimal denBlendedAwSaasDisc = 0.0;  //Added for CW-1513
+        Decimal numVfabricTermdisc = 0.0; //Added for CW-1513
+        Decimal denVfabricTermdisc = 0.0; //Added for CW-1513
+        Decimal numHorizonairsubscription = 0.0; //Added for CW-1513
+        Decimal denHorizonairsubscription = 0.0; //Added for CW-1513
+        Decimal numPivotalPerpetualDisc = 0.0; //Added for CW-1513
+        Decimal denPivotalPerpetualDisc = 0.0; //Added for CW-1513
+        Decimal numPivotalTermDisc = 0.0; //Added for CW-1513
+        Decimal denPivotalTermDisc = 0.0; //Added for CW-1513
+        Integer countAirwatchTermFlag = 0; //Added for CW-1513
+        Integer countSocialCastTermFlag = 0; //Added for CW-1513
+        Integer countIOTPrepetualDiscount =0; //Added for CW-1513
+        
+        List<SBQQ__Quote__c> mainUpdateQuote = new List<SBQQ__Quote__c>();
+        for(SBQQ__QuoteLine__c  objquoteline : [Select id,Name ,CPQ_SKU_Type__c,SBQQ__Product__r.CPQ_PDH_Product_Family__c, CPQ_Discount_Class__c,SBQQ__AdditionalDiscount__c,CPQ_Total_Effective_Discount__c,SBQQ__NetTotal__c, SBQQ__Product__c from SBQQ__QuoteLine__c where SBQQ__Quote__c in :quoteId])
+        {
+              System.debug('#######  QuoteLineIds ' + QuoteLineIds);
+              System.debug('#######  objquoteline.Id ' + objquoteline.Id);
+              if(!QuoteLineIds.contains(objquoteline.Id))
+              {
+                    System.debug('#######  Discount Rate ' + objquoteline.CPQ_Total_Effective_Discount__c);
+                    System.debug('#######  Net Total ' + objquoteline.SBQQ__NetTotal__c);
+                    if(objquoteline.CPQ_Discount_Class__c == 'Perpetual')
+                    {
+                        if(objquoteline.SBQQ__NetTotal__c != null && objquoteline.CPQ_Total_Effective_Discount__c != null)
+                        {
+                            numerator = numerator + objquoteline.CPQ_Total_Effective_Discount__c * objquoteline.SBQQ__NetTotal__c;
+                            denominator = denominator  + objquoteline.SBQQ__NetTotal__c;
+                        }
+                    }
+                    if(objquoteline.CPQ_Discount_Class__c != null)
+                    {
+                        if(objquoteline.SBQQ__NetTotal__c != null && objquoteline.CPQ_Total_Effective_Discount__c != null)
+                        {
+                        numerator1 = numerator1 + objquoteline.CPQ_Total_Effective_Discount__c * objquoteline.SBQQ__NetTotal__c;
+                        denominator1 = denominator1  + objquoteline.SBQQ__NetTotal__c;
+                        
+                        numerator2 = numerator2 + objquoteline.SBQQ__AdditionalDiscount__c * objquoteline.SBQQ__NetTotal__c;
+                        denominator2 = denominator2  + objquoteline.SBQQ__NetTotal__c;
+                        }
+                    }
+                    //Start - Nikhil - CW 1047
+                    if(objquoteline.CPQ_Discount_Class__c == 'Subscription')
+                    {
+                        if(objquoteline.SBQQ__NetTotal__c != null && objquoteline.CPQ_Total_Effective_Discount__c != null)
+                        {
+                            numSubcriptionBlended = numSubcriptionBlended + objquoteline.CPQ_Total_Effective_Discount__c * objquoteline.SBQQ__NetTotal__c;
+                            denoSubcriptionBlended = denoSubcriptionBlended  + objquoteline.SBQQ__NetTotal__c;
+                        }
+                    }
+                    //End - Nikhil - CW 1047
+                    if(objquoteline.CPQ_SKU_Type__c=='SNS')
+                    {
+                        if(objquoteline.SBQQ__NetTotal__c!=null)
+                        {
+
+                            denominator2 = denominator2  + objquoteline.SBQQ__NetTotal__c;
+                        }
+
+                    }
+                    
+                    //Start CW-1513
+                    //CW-1513 Discount for SaaS Discount Class and ANY Product Family //CW-1513
+                    if(objquoteline.CPQ_Discount_Class__c == 'SaaS' && (objquoteline.SBQQ__Product__r.CPQ_PDH_Product_Family__c != '' || objquoteline.SBQQ__Product__r.CPQ_PDH_Product_Family__c != NULL))
+                    {
+                        if(objquoteline.SBQQ__NetTotal__c != null && objquoteline.CPQ_Total_Effective_Discount__c != null)
+                        {
+                            
+                            numBlendedSaasSDPDisc = numBlendedSaasSDPDisc + objquoteline.CPQ_Total_Effective_Discount__c * objquoteline.SBQQ__NetTotal__c;
+                            denBlendedSaasSDPDisc = denBlendedSaasSDPDisc  + objquoteline.SBQQ__NetTotal__c;
+                        }
+                    }
+                    
+                    //CW-1513 Discount for AWSaaS Discount Class and ANY Product Family //CW-1513
+                    if(objquoteline.CPQ_Discount_Class__c == 'AwSaaS' && (objquoteline.SBQQ__Product__r.CPQ_PDH_Product_Family__c != '' || objquoteline.SBQQ__Product__r.CPQ_PDH_Product_Family__c != NULL))
+                    {
+                        if(objquoteline.SBQQ__NetTotal__c != null && objquoteline.CPQ_Total_Effective_Discount__c != null)
+                        {
+                            numBlendedAwSaasDisc = numBlendedAwSaasDisc + objquoteline.CPQ_Total_Effective_Discount__c * objquoteline.SBQQ__NetTotal__c;
+                            denBlendedAwSaasDisc = denBlendedAwSaasDisc  + objquoteline.SBQQ__NetTotal__c;  
+                        }
+                    }
+                    
+                    //CW-1513 Discount for vFabric Discount Class and Subscription Product Family //CW-1513
+                    if(objquoteline.CPQ_Discount_Class__c == 'Subscription' && objquoteline.SBQQ__Product__r.CPQ_PDH_Product_Family__c == 'vFabric')
+                    {
+                        if(objquoteline.SBQQ__NetTotal__c != null && objquoteline.CPQ_Total_Effective_Discount__c != null)
+                        {
+                            numVfabricTermdisc = numVfabricTermdisc + objquoteline.CPQ_Total_Effective_Discount__c * objquoteline.SBQQ__NetTotal__c;
+                            denVfabricTermdisc = denVfabricTermdisc + objquoteline.SBQQ__NetTotal__c;   
+                        }
+                    }
+                    
+                    
+                    //CW-1513 Discount for Subscription Discount Class and vFabric Product Family //CW-1513
+                    if(objquoteline.CPQ_Discount_Class__c == 'Subscription' && objquoteline.SBQQ__Product__r.CPQ_PDH_Product_Family__c == 'Horizon')
+                    {
+                        if(objquoteline.SBQQ__NetTotal__c != null && objquoteline.CPQ_Total_Effective_Discount__c != null)
+                        {
+                            numHorizonairsubscription = numHorizonairsubscription + objquoteline.CPQ_Total_Effective_Discount__c * objquoteline.SBQQ__NetTotal__c;
+                            denHorizonairsubscription = denHorizonairsubscription + objquoteline.SBQQ__NetTotal__c; 
+                        }
+                    }
+                    
+                    //CW-1513 Discount for Subscription Discount Class and Pivotal Product Family //CW-1513
+                    
+                    
+                    //CW-1513 Discount for Perpetual Discount Class and Pivotal Product Family //CW-1513
+                    if(objquoteline.CPQ_Discount_Class__c == 'Perpetual' && objquoteline.SBQQ__Product__r.CPQ_PDH_Product_Family__c == 'Pivotal')
+                    {
+                        if(objquoteline.SBQQ__NetTotal__c != null && objquoteline.CPQ_Total_Effective_Discount__c != null)
+                        {
+                            numPivotalPerpetualDisc = numPivotalPerpetualDisc + objquoteline.CPQ_Total_Effective_Discount__c * objquoteline.SBQQ__NetTotal__c;
+                            denPivotalPerpetualDisc = denPivotalPerpetualDisc + objquoteline.SBQQ__NetTotal__c; 
+                        }
+                    }
+                    
+                    if(objquoteline.CPQ_Discount_Class__c == 'Subscription' && objquoteline.SBQQ__Product__r.CPQ_PDH_Product_Family__c == 'Pivotal')
+                    {
+                        if(objquoteline.SBQQ__NetTotal__c != null && objquoteline.CPQ_Total_Effective_Discount__c != null)
+                        {
+                            numPivotalTermDisc = numPivotalTermDisc + objquoteline.CPQ_Total_Effective_Discount__c * objquoteline.SBQQ__NetTotal__c;
+                            denPivotalTermDisc = denPivotalTermDisc + objquoteline.SBQQ__NetTotal__c;   
+                        }
+                    }
+                    
+                    //CW-1513 AirwatchTermFlag ProductFamily=Airwatch and DiscountClass=Subscription //CW-1513 
+                    if(objquoteline.CPQ_Discount_Class__c == 'Subscription' && objquoteline.SBQQ__Product__r.CPQ_PDH_Product_Family__c == 'Airwatch')
+                    {
+                        countAirwatchTermFlag++;
+                    }
+                    
+                    //CW-1513 SocialCastTermFlag Set True if  SKUs having ProductFamily=SocialCast and DiscountClass=Subscription. //CW-1513 
+                    if(objquoteline.CPQ_Discount_Class__c == 'Subscription' && objquoteline.SBQQ__Product__r.CPQ_PDH_Product_Family__c == 'SocialCast')
+                    {
+                        countSocialCastTermFlag++;
+                    }
+                    //CW-1513 IOTPrepetualDiscount Set True if  SKUs having ProductFamily=IOT and DiscountClass=Perpetual. //CW-1513 
+                    if(objquoteline.CPQ_Discount_Class__c == 'Perpetual' && objquoteline.SBQQ__Product__r.CPQ_PDH_Product_Family__c == 'IOT')
+                    {
+                        countIOTPrepetualDiscount++;
+                    }           
+                    //End CW-1513
+              }
+        }
+        System.debug('#######  numerator ' + numerator);
+        System.debug('#######  denominator ' + denominator);
+        System.debug('#######  numerator1 ' + numerator1);
+        System.debug('#######  denominator1 ' + denominator1);
+        for(SBQQ__Quote__c  objSbq : [Select id,Name,CPQ_Perpetual_Blended_Discount__c,CPQ_Total_Blended_Disc__c,
+        CPQ_Blended_Additional_Discount__c from SBQQ__Quote__c where id in : quoteId])
+        {
+                SBQQ__Quote__c  quote = new SBQQ__Quote__c(id=objSbq.id);
+                if(denominator != 0.0 && numerator != 0.0 )
+                {
+                     quote.CPQ_Perpetual_Blended_Discount__c    = numerator/denominator ;
+                }
+                else
+                {
+                     quote.CPQ_Perpetual_Blended_Discount__c    = 0.0 ;
+                    
+                }
+                if(numerator1 != 0.0 && denominator1 != 0.0 )
+                {  
+                     quote.CPQ_Total_Blended_Disc__c            = numerator1/denominator1 ;
+                }
+                else
+                {
+                     quote.CPQ_Total_Blended_Disc__c    = 0.0 ;
+                    
+                }
+                if(numerator2 != 0.0 && denominator2 != 0.0)
+                {
+                     quote.CPQ_Blended_Additional_Discount__c            = numerator2/denominator2 ;
+                }
+                else
+                {
+                     quote.CPQ_Blended_Additional_Discount__c    = 0.0 ;
+                    
+                }
+                //Start - Nikhil - CW 1047
+                if(numSubcriptionBlended != 0.0 && denoSubcriptionBlended != 0.0 )
+                {
+                     quote.CPQ_Subscription_Blended_Discount__c = numSubcriptionBlended/denoSubcriptionBlended ;
+                    
+                }
+                else
+                {
+                     quote.CPQ_Subscription_Blended_Discount__c    = 0.0 ;
+                    
+                }
+                //End - Nikhil - CW 1047
+                
+                //Start - CW-1513 
+                //Check if the discount for SaaS is not 0 or 0/0 AND update CPQ_BlendedSaasSDPDisc__c //CW-1513
+                if (numBlendedSaasSDPDisc != 0.0 && denBlendedSaasSDPDisc != 0.0)
+                {
+                    quote.CPQ_BlendedSaasSDPDisc__c = numBlendedSaasSDPDisc/denBlendedSaasSDPDisc;
+                }
+                
+                else
+                {
+                    quote.CPQ_BlendedSaasSDPDisc__c = 0.0;
+                }
+                
+                //Check if the discount for AWSaaS is not 0 or 0/0 AND update CPQ_BlendedAwSaasDisc__c //CW-1513
+                if (numBlendedAwSaasDisc != 0.0 && denBlendedAwSaasDisc != 0.0)
+                {
+                    quote.CPQ_BlendedAwSaasDisc__c = numBlendedAwSaasDisc/denBlendedAwSaasDisc;
+                }
+                
+                else
+                {
+                    quote.CPQ_BlendedAwSaasDisc__c = 0.0;
+                }
+                
+                if (numVfabricTermdisc != 0 && denVfabricTermdisc != 0)
+                {
+                    quote.VfabricTermdiscount__c = numVfabricTermdisc/denVfabricTermdisc;
+                }
+                
+                else
+                {
+                    quote.VfabricTermdiscount__c = 0.0;
+                }
+                
+                if (numHorizonairsubscription != 0 && denHorizonairsubscription != 0)
+                {
+                    quote.CPQ_Horizonairsubscription__c = numHorizonairsubscription/denHorizonairsubscription;
+                }
+                
+                else
+                {
+                    quote.CPQ_Horizonairsubscription__c = 0.0;
+                }
+                
+                if (numPivotalPerpetualDisc != 0 && denPivotalPerpetualDisc != 0)
+                {
+                    quote.CPQ_PivotalPerpetualDiscount__c = numPivotalPerpetualDisc/denPivotalPerpetualDisc;
+                }
+                
+                else
+                {
+                    quote.CPQ_PivotalPerpetualDiscount__c = NULL;
+                }
+                
+                if (numPivotalTermDisc != 0 && denPivotalTermDisc != 0)
+                {
+                    quote.CPQ_PivotalTermDiscount__c = numPivotalTermDisc/denPivotalTermDisc;
+                }
+                
+                else
+                {
+                    quote.CPQ_PivotalTermDiscount__c = 0.0;
+                }
+                
+                if(countAirwatchTermFlag == 0) 
+        {
+          quote.CPQ_AirwatchTermFlag__c = FALSE; 
+        }
+                
+                if(countSocialCastTermFlag == 0)
+        {
+          quote.CPQ_SocialCastTermFlag__c = FALSE;
+        } 
+                
+                if(countIOTPrepetualDiscount == 0)
+        {
+          quote.CPQ_IOTPrepetualDiscount__c = FALSE;
+        }
+                
+                //End - CW-1513
+                mainUpdateQuote.add(quote);
+        }
+        
+        if(!mainUpdateQuote.IsEmpty())
+        {
+      update mainUpdateQuote;
+    }
+    }
+}
+
+
+
+\sfdc\it-sfdc\dev-cd\packageDir_dev_11Sep2018\ 

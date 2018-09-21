@@ -1,0 +1,38 @@
+https://vmware--dev3.cs67.my.salesforce.com/aOY0n0000004CpkGAE
+
+BM-ENT-FND-C
+NX-ENT-C
+NX-STD-C1 = support
+
+
+https://vmware--dev3.cs67.my.salesforce.com/01t0n000001XHhZ
+https://vmware--dev3.cs67.my.salesforce.com/01t0n000001XHfn
+https://vmware--dev3.cs67.my.salesforce.com/01t0n000001eOTC 
+
+
+
+
+
+Subscription/SaaS/AwSaas Left:
+
+
+
+
+Subscription/SaaS/AwSaas Done:
+13) PivotalTermDiscount =  Weighted average of  SKUs having ProductFamily=Pivotal and DiscountClass= Subscription. 
+8) Horizonairsubscription  = Weighted average of  SKUs having ProductFamily=Horizonair and DiscountClass=Subscription . 
+4) VfabricTermdiscount   :  Weighted average of  SKUs having ProductFamily=vFabric and DiscountClass=Subscription . 
+6) AirwatchTermFlag : True/False :  Set True if SKUs having ProductFamily=Airwatch and DiscountClass=Subscription. 
+7) SocialCastTermFlag = Set True if  SKUs having ProductFamily=SocialCast and DiscountClass=Subscription. 
+5) BlendedSaasSDPDisc : Weighted average of  SKUs having Any  product family and DiscountClass=SaaS.
+9) BlendedAwSaasDisc = = Weighted average of  SKUs having any ProductFamily and DiscountClass=AwSaaS
+
+
+Perpetual Left:
+11) IOTPrepetualDiscount = Set True if  SKUs having ProductFamily=IOT and DiscountClass=Perpetual.
+12) PivotalPerpetualDiscount  =Weighted average of  SKUs having ProductFamily=Pivotal and DiscountClass= Perpetual
+
+
+
+
+10)CloudNativeAppDiscount = Set True if  SKUs having ProductFamily= and DiscountClass=   [~mohantys]  Please update the Product Family and Discount of Clound Native App SKUs.

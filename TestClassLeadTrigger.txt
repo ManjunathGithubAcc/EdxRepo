@@ -1,0 +1,200 @@
+@isTest(seeAllData = true)
+
+public class DNBILeadTriggerHelperTest2
+{
+    static testmethod void Test1()
+    {
+    
+        /*list<Record_Type_Settings__c> listRecord_Type_Settings= new list<Record_Type_Settings__c> ();
+            Record_Type_Settings__c Re1= new Record_Type_Settings__c (name= 'SFA_Acc_EC',currencyisocode= 'USD', app_type__c= 'SFA',object_type__c= 'Account',record_type_id__c= '01280000000B81DAAS',record_type_name__c= 'End Customer');
+            Record_Type_Settings__c Re2= new Record_Type_Settings__c (name= 'GSS_ACC_EC',currencyisocode= 'USD', app_type__c= 'GSS',object_type__c= 'Account',record_type_id__c= '01280000000B81DAAS',record_type_name__c= 'End Customer');
+            Record_Type_Settings__c Re3= new Record_Type_Settings__c (name= 'AWOpportunityRT',currencyisocode= 'USD', app_type__c= 'Airwatch',object_type__c= 'Opportunity',record_type_id__c= '0123400000045SuAAI',record_type_name__c= 'AirwatchOpportunity');
+            Record_Type_Settings__c Re4= new Record_Type_Settings__c (name= 'XUPSell_Manage_Sales_Oppty',currencyisocode= 'USD', app_type__c= 'SFA',object_type__c= 'Opportunity',record_type_id__c= '01280000000BY1F',record_type_name__c= 'Managed Sales Opportunity');
+            Record_Type_Settings__c Re5= new Record_Type_Settings__c (name= 'Deal_Management_AMER',currencyisocode= 'USD', app_type__c= 'SFA',object_type__c= 'Case',record_type_id__c= '01234000000Hq1tAAC',record_type_name__c= 'Deal Management AMER');
+            Record_Type_Settings__c Re6= new Record_Type_Settings__c (name= 'Deal_Management_APJ',currencyisocode= 'USD', app_type__c= 'SFA',object_type__c= 'Case',record_type_id__c= '01234000000GHDmAAO',record_type_name__c= 'Deal Management APJ');
+            Record_Type_Settings__c Re7= new Record_Type_Settings__c (name= 'Deal_Operations_EMEA',currencyisocode= 'USD', app_type__c= 'SFA',object_type__c= 'Case',record_type_id__c= '012800000004563AAA',record_type_name__c= 'Deal Operations EMEA');
+            Record_Type_Settings__c Re8= new Record_Type_Settings__c (name= 'PRM_Acc_MAL',currencyisocode= 'USD', app_type__c= 'PRM',object_type__c= 'Account',record_type_id__c= '01280000000B81EAAS',record_type_name__c= 'Master Account Layout');
+            Record_Type_Settings__c Re9= new Record_Type_Settings__c (name= 'PRM_Acc_PL',currencyisocode= 'USD', app_type__c= 'PRM',object_type__c= 'Account',record_type_id__c= '01280000000B81FAAS',record_type_name__c= 'Partner Location');
+            Record_Type_Settings__c Re10= new Record_Type_Settings__c (name= 'Lead_XSUS',currencyisocode= 'USD', app_type__c= 'XFire',object_type__c= 'Lead',record_type_id__c= '0123400000045RGAAY',record_type_name__c= 'XSUS Cross-Sell/Up-Sell -Renewals');
+            
+            
+            
+            Record_Type_Settings__c Re11= new Record_Type_Settings__c (name= 'Lead_Vmware_Record_Type',currencyisocode= 'USD', app_type__c= 'XFire',object_type__c= 'Lead',record_type_id__c= '01280000000BTsoAAG',record_type_name__c= 'VMware Lead Record Type');
+            
+            
+            list<LeadManagerPublicGroup__c> listLeadManagerPublicGroup= new list<LeadManagerPublicGroup__c> ();
+
+            LeadManagerPublicGroup__c Le1= new LeadManagerPublicGroup__c();
+            Le1.name= 'Lead Manager Public Group ID';
+            Le1.currencyisocode= 'USD';
+            Le1.groupid__c= '00G80000002OJWrEAO';
+            Le1.update_owner_fields__c= false;
+
+            listLeadManagerPublicGroup.add(Le1);
+            insert listLeadManagerPublicGroup;
+            
+            
+            List<DNBI_Properties__c> dnbipList = new List<DNBI_Properties__c>();
+        
+        DNBI_Properties__c  dnbip = new DNBI_Properties__c();
+        dnbip.Name = 'Integration_Batch_Size';
+        dnbip.DNB_Value__c= '50';
+        dnbipList.add(dnbip);
+        
+     
+        DNBI_Properties__c  dnbip1 = new DNBI_Properties__c();
+        dnbip1.Name = 'OutputRecordCountDNBIMaxQuantity';
+        dnbip1.DNB_Value__c= '50';
+        dnbipList.add(dnbip1);
+     
+        DNBI_Properties__c  dnbip2 = new DNBI_Properties__c();
+        dnbip2.Name = 'OutputRecordCountDNBIMaxQuantityForCMP';
+        dnbip2.DNB_Value__c= '50';
+        dnbipList.add(dnbip2);
+     
+        DNBI_Properties__c  dnbip3 = new DNBI_Properties__c();
+        dnbip3.Name = 'ConfidenceCode';
+        dnbip3.DNB_Value__c= '50';
+        dnbipList.add(dnbip3);
+     
+        DNBI_Properties__c  dnbip4 = new DNBI_Properties__c();
+        dnbip4.Name = 'ConfidenceCode_AccountSearch';
+        dnbip4.DNB_Value__c= '50';
+        dnbipList.add(dnbip4);
+     
+        DNBI_Properties__c  dnbip5 = new DNBI_Properties__c();
+        dnbip5.Name = 'Dummy_DNBCall_Id';
+        dnbip5.DNB_Value__c= '50';
+        dnbipList.add(dnbip5);
+     
+        DNBI_Properties__c  dnbip6 = new DNBI_Properties__c();
+        dnbip6.Name = 'TrilliumMatchingScore';
+        dnbip6.DNB_Value__c= '50';
+        dnbipList.add(dnbip6);
+     
+        DNBI_Properties__c  dnbip7 = new DNBI_Properties__c();
+        dnbip7.Name = 'SearchPriority';
+        dnbip7.DNB_Value__c= '50';
+        dnbipList.add(dnbip7);
+     
+        DNBI_Properties__c  dnbip8 = new DNBI_Properties__c();
+        dnbip8.Name = 'QueryBatchSize';
+        dnbip8.DNB_Value__c= '50';
+        dnbipList.add(dnbip8);
+     
+        DNBI_Properties__c  dnbip9 = new DNBI_Properties__c();
+        dnbip9.Name = 'EndPointURL';
+        dnbip9.DNB_Value__c= '50';
+        dnbipList.add(dnbip9);
+     
+        database.insert(dnbipList, false);
+            
+            
+            
+            
+            listRecord_Type_Settings.add(Re1);
+            listRecord_Type_Settings.add(Re3);
+            listRecord_Type_Settings.add(Re2);
+            listRecord_Type_Settings.add(Re4);
+            listRecord_Type_Settings.add(Re5);
+            listRecord_Type_Settings.add(Re6);
+            listRecord_Type_Settings.add(Re7);
+            listRecord_Type_Settings.add(Re8);
+            listRecord_Type_Settings.add(Re9);
+            listRecord_Type_Settings.add(Re10);
+             listRecord_Type_Settings.add(Re11);
+            insert listRecord_Type_Settings;
+
+        
+        DNBI_Callout_Settings__c dcs = new DNBI_Callout_Settings__c();
+        insert dcs;
+        
+        
+        
+        
+        list<ETM_Do_Not_Delete_Territory_Values__c> listETM_Do_Not_Delete_Territory_Values= new list<ETM_Do_Not_Delete_Territory_Values__c> ();
+
+        ETM_Do_Not_Delete_Territory_Values__c ET1= new ETM_Do_Not_Delete_Territory_Values__c ();
+        ET1.name= 'aDa340000004C93';
+        ET1.currencyisocode= 'USD';
+        ET1.setupownerid= UserInfo.getOrganizationId();
+        ET1.target_objects__c= 'Account, Lead, Deal Registration, Opportunity';
+
+        listETM_Do_Not_Delete_Territory_Values.add(ET1);
+
+
+        insert listETM_Do_Not_Delete_Territory_Values;
+        
+              list<XFIRE_Config_Settings__c> listXFIRE_Config_Settings= new list<XFIRE_Config_Settings__c> ();
+
+        XFIRE_Config_Settings__c XF1= new XFIRE_Config_Settings__c ();
+        XF1.name= 'Multi Select Pick List Error';
+        XF1.currencyisocode= 'USD';
+        XF1.value__c= 'The field Product Interest cannot have multiple values for XSellUpSell Leads';
+
+        listXFIRE_Config_Settings.add(XF1);
+
+
+        insert listXFIRE_Config_Settings;
+        
+        
+        
+        
+        
+        list<PLMStatic__c> listPLMStatic= new list<PLMStatic__c> ();
+              
+              
+                PLMStatic__c PL1= new PLMStatic__c ();
+                PL1.name= 'MasterAccountLayoutRecType';
+                PL1.currencyisocode= 'USD';
+                PL1.value__c= '01280000000B81EAAS';
+                PL1.info_from_lead_to_account__c= false;
+
+                listPLMStatic.add(PL1);
+                PLMStatic__c PL2= new PLMStatic__c ();
+                PL2.name= 'PartnerLocationRecType';
+                PL2.currencyisocode= 'USD';
+                PL2.value__c= '01280000000B81FAAS';
+                PL2.info_from_lead_to_account__c= false;
+
+                listPLMStatic.add(PL2);
+                PLMStatic__c PL3= new PLMStatic__c ();
+                PL3.name= 'VirtualPartnerAccountRecType';
+                PL3.currencyisocode= 'USD';
+                PL3.value__c= '01280000000BZCdAAO';
+                PL3.info_from_lead_to_account__c= false;
+                listPLMStatic.add(PL3);
+
+
+                insert listPLMStatic;
+        
+        */
+            
+        Lead lead1 = new Lead();
+        lead1.FirstName = 'FirstName';
+        
+        lead1.LastName = 'LastName';
+        lead1.Email = 'first@last.com';
+        
+        lead1.Company = 'New Test Account 001';
+        lead1.Address_1__c = 'test';
+        lead1.Address_2__c = 'test';
+        lead1.City__c = 'SC';
+        lead1.State_Province__c = 'CA';
+        lead1.Country__c = 'United States';
+        lead1.Postal_Code__c = '95051';
+        lead1.Employees_Worldwide__c = '100';
+        lead1.of_Desktops__c='50';
+        lead1.of_Servers__c='190';
+        lead1.DULT__c = '567';
+        lead1.Record_Source__c = 'AW Eloqua';
+        lead1.PFST_Match_Reason__c = '157462698';
+        lead1.DUNS__c = 'test';
+        lead1.status = '0 New';
+        lead1.GEO__c = 'AMER';
+        lead1.is_locked__c = false;
+        lead1.XFire_Fiscal_Quarter__c = 'Q3';
+        lead1.XFire_Fiscal_Year__c = '2019';
+        insert lead1;
+    }
+}

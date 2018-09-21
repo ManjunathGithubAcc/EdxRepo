@@ -1,0 +1,209 @@
+@isTest(seeAllData = false)
+public class XFireEnrichmentUtilTest{
+    
+    public static List<Account> aList = new List<Account>();
+   
+    public static Date todayDate = system.today();
+
+   
+    public static List<XFire_Recommendation__c> rList = new List<XFire_Recommendation__c>();
+    public static List<Opportunity> oList = new List<Opportunity>();
+    public static List<Lead> leadList = new List<Lead>();
+    public static List<Contact> conList = new List<Contact>();
+    public static Opportunity alignedFQFYOppty;
+    public static XUPSell_Setup__c xsusSetupObjRec;
+    public static Set<id> recommendationIdSet;  
+    
+   
+    static void SetUpData() {
+        
+     
+     
+        SalesTestData.customSettingData();
+        
+         XFire_TestDataFactory.createXfireConfigSettingsData();
+         XFire_TestDataFactory.createXfireEnrichmentMappingData();
+         XFire_TestDataFactory.createXfireDMquery();
+        
+        
+        list<Record_Type_Settings__c> listRecord_Type_Settings= new list<Record_Type_Settings__c> ();
+
+        Record_Type_Settings__c Re1= new Record_Type_Settings__c ();
+        Re1.name= 'SFA_Con_Cust';
+        Re1.currencyisocode= 'USD';
+        Re1.app_type__c= 'SFA';
+        Re1.object_type__c= 'Contact';
+        Re1.record_type_id__c= '01280000000BY15AAG';
+        Re1.record_type_name__c= 'Customer Contact';
+
+        listRecord_Type_Settings.add(Re1);
+
+
+        insert listRecord_Type_Settings;
+                
+            
+    
+        List<Account> aList = new List<Account>();
+        Account a1 = new Account(Name = 'TestAccount1',Country__c  = 'UNITED STATES',RecordTypeId = Schema.SObjectType.Account.getRecordTypeInfosByName().get('End Customer').getRecordTypeId(), Partner_ID__c = '10012771',LBI__NumberOfOpenInProgressRecommendations__c=2);
+        aList.add(a1);//for present opportunity
+        Account a2 = new Account(Name = 'TestAccount1',Country__c  = 'UNITED STATES',RecordTypeId = Schema.SObjectType.Account.getRecordTypeInfosByName().get('End Customer').getRecordTypeId(), Partner_ID__c = '10012771',LBI__NumberOfOpenInProgressRecommendations__c=2);
+        aList.add(a2);//for present opportunity
+
+        insert aList;
+    
+    
+         list<XUPSell_Quarter__c> xsusQuarterList2 = new list<XUPSell_Quarter__c> ();
+        
+     
+           xsusQuarterList2.add(new XUPSell_Quarter__c(name = 'TEST1', Quarter__c = 'Q3', Year__c = 2019, Start_Date__c = system.today().addMonths(-1), End_Date__c = system.today().addMonths(3)));
+           xsusQuarterList2.add(new XUPSell_Quarter__c(name = 'TEST1', Quarter__c = 'Q3', Year__c = 2019, Start_Date__c = system.today().addMonths(-1), End_Date__c = system.today()));
+             
+            
+          
+        insert xsusQuarterList2;
+       
+            XFireUtilityClass.allQuarterList=xsusQuarterList2;
+        
+        
+        
+        
+     
+        
+        //------------------------------CREATE OPPORTUNITY DATA FOR CREATING LEAD USING RECOMMENDATION RECORD------------------------------
+        
+        String renSalesOpptyRTStr = (Record_Type_Settings__c.getInstance('RS2_Renewal_Sales_Opportunity')).Record_Type_ID__c;
+        
+        Opportunity o1 = new Opportunity(Name = 'TestOpportuinty1',AccountId = aList[0].id, RS2_Expiring_Contract_End_Date__c = system.today().addMonths(2), StageName = '02 - Qualified',CloseDate = system.today().addMonths(1),RecordTypeId = renSalesOpptyRTStr, Amount = 100);
+        oList.add(o1);
+        
+        Opportunity o2 = new Opportunity(Name = 'TestOpportuinty2',AccountId = aList[0].id, RS2_Expiring_Contract_End_Date__c = system.today().addMonths(-2), StageName = '02 - Qualified',CloseDate = system.today().addMonths(1),RecordTypeId = renSalesOpptyRTStr, Amount = 100);
+        oList.add(o2);
+        
+        Opportunity o3 = new Opportunity(Name = 'TestOpportuinty2',AccountId = aList[0].id, RS2_Expiring_Contract_End_Date__c = system.today().addMonths(12), StageName = '02 - Qualified',CloseDate = system.today().addMonths(1),RecordTypeId = renSalesOpptyRTStr, Amount = 100);
+        oList.add(o3);
+        
+        Opportunity o4 = new Opportunity(Name = 'TestOpportuinty2',AccountId = aList[0].id, RS2_Expiring_Contract_End_Date__c = system.today().addMonths(-5), StageName = '02 - Qualified',CloseDate = system.today().addMonths(1),RecordTypeId = renSalesOpptyRTStr, Amount = 100);
+        oList.add(o4);
+        //future opportunity
+ 
+      
+    
+        insert oList;
+        //------------------------------CREATE RECOMMENDATION DATA------------------------------ 
+        alignedFQFYOppty = XFireUtilityClass.getquateryear(oList[0],xsusQuarterList2);
+        String fiscalyear = alignedFQFYOppty.Fiscal_Year__c;
+        String fiscalquarter = alignedFQFYOppty.Fiscal_Quarter__c;
+    
+        XFire_Recommendation__c r1 = new XFire_Recommendation__c(Likelihood__c = '3 - Above Average', Lost_Opportunities__c = '', PY_Bookings__c = 16521.23, Products_Purchased__c = 'SiteRecoveryManager, Supt & Maint, vCenter, vSphere-EssentialsPlus, vSphere-General, vSphere-Standard', Evaluated_products__c = '', Fiscal_Quarter__c = fiscalQuarter, Fiscal_Year__c = fiscalYear, Targeted_Solution__c = 'vSphere Education', USD_Total_Bookings__c = 25645.30, vSphere_Edition__c = 'EssentialsPlus', Account_Name__c = aList[0].id, Analytics_Engine__c = '', CY_Bookings__c = 4984.28, CurrencyIsoCode = 'USD', Source__c = 'XSUS Cross-Sell/Up-Sell – Analytics', Status__c = 'Success', Targeted_Product_Name__c = '', Screening_Results__c = '', Lead_Status__c = '', Error_Message__c = '', Reject_Reason__c = '', Event_Attended_Speaker_Session__c = '', Address_1__c = '801 CENTER ST', Address_2__c = '', Applications_Virtualized__c = '', Business_Phone__c  = '', City__c = 'Bowling Green', Contact_Me_Confirmation__c = false, Country__c = 'UNITED STATES', Department__c = '', Do_Not_Call__c = false, DULT__c = '', Email_Address__c = '', First_Name__c = '', GULT__c = '', Industry__c = 'Government - Local', Job_Role__c = '', Language__c = '', Last_Name__c = '', Mobile_Phone__c = '', Number_of_Desktop__c = '101-500', Number_of_Employees_Country__c = '', Number_of_x86_servers_at_your_site__c = '21-50', PartnerID__c = '10012771', Preferred_Reseller__c = '', Primary_Product_Group_Interest__c = '', Refresh_Desktop__c = '', Refresh_Server__c = '', Salutation__c = '', State_or_Province__c = 'KY', Title__c = '', Type_of_storage_used_at_your_site__c = '', Virtualization_Project__c = '', Zip_or_Postal_Code__c = '42101',  VMware_Partner__c = '', VMware_Customer__c = '', DM_Opportunity__c = '');
+        rList.add(r1);
+         
+           alignedFQFYOppty = XFireUtilityClass.getquateryear(oList[1],xsusQuarterList2);
+        fiscalyear = alignedFQFYOppty.Fiscal_Year__c;
+        fiscalquarter = alignedFQFYOppty.Fiscal_Quarter__c;
+         
+        XFire_Recommendation__c r2 = new XFire_Recommendation__c(Likelihood__c = '3 - Above Average', Lost_Opportunities__c = '', PY_Bookings__c = 16521.23, Products_Purchased__c = 'SiteRecoveryManager, Supt & Maint, vCenter, vSphere-EssentialsPlus, vSphere-General, vSphere-Standard', Evaluated_products__c = '', Fiscal_Quarter__c = fiscalQuarter, Fiscal_Year__c = fiscalYear, Targeted_Solution__c = 'vSphere Education', USD_Total_Bookings__c = 25645.30, vSphere_Edition__c = 'EssentialsPlus', Account_Name__c = aList[1].id, Analytics_Engine__c = '', CY_Bookings__c = 4984.28, CurrencyIsoCode = 'USD', Source__c = 'XSUS Cross-Sell/Up-Sell – Analytics', Status__c = 'Success', Targeted_Product_Name__c = '', Screening_Results__c = '', Lead_Status__c = '', Error_Message__c = '', Reject_Reason__c = '', Event_Attended_Speaker_Session__c = '', Address_1__c = '801 CENTER ST', Address_2__c = '', Applications_Virtualized__c = '', Business_Phone__c  = '', City__c = 'Bowling Green', Contact_Me_Confirmation__c = false, Country__c = 'UNITED STATES', Department__c = '', Do_Not_Call__c = false, DULT__c = '', Email_Address__c = '', First_Name__c = '', GULT__c = '', Industry__c = 'Government - Local', Job_Role__c = '', Language__c = '', Last_Name__c = '', Mobile_Phone__c = '', Number_of_Desktop__c = '101-500', Number_of_Employees_Country__c = '', Number_of_x86_servers_at_your_site__c = '21-50', PartnerID__c = '10012771', Preferred_Reseller__c = '', Primary_Product_Group_Interest__c = '', Refresh_Desktop__c = '', Refresh_Server__c = '', Salutation__c = '', State_or_Province__c = 'KY', Title__c = '', Type_of_storage_used_at_your_site__c = '', Virtualization_Project__c = '', Zip_or_Postal_Code__c = '42101',  VMware_Partner__c = '', VMware_Customer__c = '', DM_Opportunity__c = '');
+        rList.add(r2);
+        
+        insert rList;
+        
+        
+        Lead lead1 = new Lead();
+        lead1.FirstName = 'FirstName';
+        
+        lead1.LastName = 'LastName';
+        lead1.Email = 'first@last.com';
+        
+        lead1.Company = 'New Test Account 001';
+        lead1.Address_1__c = 'test';
+        lead1.Address_2__c = 'test';
+        lead1.City__c = 'SC';
+        lead1.State_Province__c = 'CA';
+        lead1.Country__c = 'United States';
+        lead1.Postal_Code__c = '95051';
+        lead1.Employees_Worldwide__c = '100';
+        //lead1.Company='XYZ';
+        lead1.of_Desktops__c='50';
+        lead1.of_Servers__c='190';
+        lead1.DULT__c = '567';
+        lead1.Record_Source__c = 'AW Eloqua';
+        lead1.PFST_Match_Reason__c = '157462698';
+        lead1.DUNS__c = 'test';
+        lead1.status = '0 New';
+        lead1.GEO__c = 'AMER';
+        lead1.is_locked__c = false;
+        lead1.Account_Id__c = aList[0].id;
+        //lead1.Ignore_Workflow__c = true;
+        
+        leadList.add(lead1);
+        
+        insert leadList;
+     
+        conList.add( new Contact( LastName = 'Test COntact1', Primary_Contact__c = true,accountid=aList[0].Id, RecordTypeId=  Schema.SObjectType.Contact.getRecordTypeInfosByName().get('Customer Contact').getRecordTypeId(),Role_Category__c='CEO',Email='test124214@testing.com',FirstName='Testing1',Phone='1111',Salutation='Mr',Title='Testing'));
+        conList.add( new Contact( LastName = 'Test COntact', Primary_Contact__c = true,accountid=aList[0].Id, RecordTypeId= Schema.SObjectType.Contact.getRecordTypeInfosByName().get('Customer Contact').getRecordTypeId(),Role_Category__c='CIO',Email='test124212134@testing.com',FirstName='Testing1',Phone='1111',Salutation='Mr',Title='Testing'));
+        insert conList;
+        
+     
+      
+    }
+    
+    static testmethod void Test1(){
+      
+    SetUpData() ;
+        test.startTest();
+        
+    
+            
+                RS2_H2_Project_Switch__c RS1= new RS2_H2_Project_Switch__c ();
+                RS1.name= 'CrossSellUpSellLead';
+                RS1.currencyisocode= 'USD';
+                RS1.value__c= false;
+
+        
+
+            insert RS1;
+                    
+        
+        XFireEnrichmentUtil.processRecommendations(rList);
+        XFireEnrichmentUtil.processManualLead(leadList);
+        XFireEnrichmentUtil.mapLeadwithRecAndAccount(leadList);
+        XFireEnrichmentUtil.getPRSOandRenOppList();
+        
+            
+                
+                RS2_H2_Project_Switch__c RS2= new RS2_H2_Project_Switch__c ();
+                RS2.name= 'CrossSellUpSellLead';
+                RS2.currencyisocode= 'USD';
+                RS2.value__c= true;
+
+            
+            insert RS2;
+        XFireEnrichmentUtil.processRecommendations(rList);
+        
+        //XFireLeadEnrichmentBatch leadEnrichBatch = new XFireLeadEnrichmentBatch();
+        //Database.executebatch(leadEnrichBatch,10);
+        test.stopTest();		
+    }
+	
+	static testmethod void Test2()
+	{
+		
+		lead2.LastName = 'Test';
+		lead2.Company = 'Test Company';
+		lead2.Country__c = 'INDIA';
+		lead2.RecordTypeId = Schema.SObjectType.Lead.getRecordTypeInfosByName().get('Sales Play Lead Record Type').getRecordTypeId();
+		
+		test.StartTest();
+		insert lead2;
+		test.stopTest();
+		
+		List<Lead> leadsTested = [SELECT ID FROM Lead];
+		Lead l = [SELECT ID, Country__c, Company FROM Lead WHERE ID =: lead2.ID];
+		DNB_Call__c dnbCall = [SELECT ID, Lead__c FROM DNB_Call__c WHERE Lead__c =: lead2.Id];
+		
+		DNBILeadTriggerHelper.addLeadToDNBCallLogQueue();
+		
+		System.assertEquals(l.Id, dnbCall.Lead__c);
+		System.assertEquals(dnbCall.ID, NOT(Null));
+		System.assert(leadsTested.size() > 0);
+	}
+}

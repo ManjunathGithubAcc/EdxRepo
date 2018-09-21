@@ -1,0 +1,17 @@
+public class WarehouseSyncSchedule implements Schedulable
+{
+    // implement scheduled code here
+    
+    public static String scheduleIt()
+    {
+    WarehouseSyncSchedule job = new WarehouseSyncSchedule();
+    String CRON_EXP = '0 0 1 ? * *';
+    String jobID = system.schedule('DailySyncWithWareHouse', CRON_EXP, job);
+    return jobID;
+    }
+    
+    public static void execute(Schedulablecontext sc)
+    {
+        WarehouseCalloutService.runWarehouseEquipmentSync();
+    }
+}

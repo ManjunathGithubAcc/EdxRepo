@@ -1,0 +1,123 @@
+List<SBQQ__QuoteLine__c> lines = [SELECT SBQQ__Discount__c, SBQQ__Quote__c, CPQ_Discount_Class__c,CPQ_Total_Effective_Discount__c,SBQQ__NetTotal__c, SBQQ__Quote__r.CPQ_Blended_Additional_Discount__c
+FROM 
+SBQQ__QuoteLine__c 
+WHERE
+CPQ_Total_Effective_Discount__c != 0 
+AND SBQQ__NetTotal__c != 0 
+AND CPQ_Discount_Class__c != NULL
+AND SBQQ__Quote__r.CPQ_Blended_Additional_Discount__c > 0
+AND SBQQ__Discount__c != NULL];
+
+
+
+
+
+
+
+
+List<SBQQ__QuoteLine__c> lines = [SELECT SBQQ__Discount__c, SBQQ__Quote__c, CPQ_Discount_Class__c,CPQ_Total_Effective_Discount__c,SBQQ__NetTotal__c, SBQQ__Quote__r.CPQ_Blended_Additional_Discount__c
+FROM 
+SBQQ__QuoteLine__c 
+WHERE
+CPQ_Total_Effective_Discount__c != NULL 
+AND SBQQ__NetTotal__c != NULL 
+AND CPQ_Discount_Class__c != NULL
+AND SBQQ__Discount__c != NULL];
+
+*************Different records********************
+03:38:43.22 (56427216)|USER_DEBUG|[14]|DEBUG|THe values of ql.SBQQ__Quote__c aOY0n0000008OMqGAM
+03:38:43.22 (56460216)|USER_DEBUG|[14]|DEBUG|THe values of ql.SBQQ__Quote__c aOY0n0000004Cv9GAE
+
+
+
+******************Common records********************
+03:38:43.22 (56494211)|USER_DEBUG|[14]|DEBUG|THe values of ql.SBQQ__Quote__c aOY0n0000004CppGAE
+03:38:43.22 (56510130)|USER_DEBUG|[14]|DEBUG|THe values of ql.SBQQ__Quote__c aOY0n0000004CppGAE
+03:38:43.22 (56525103)|USER_DEBUG|[14]|DEBUG|THe values of ql.SBQQ__Quote__c aOY0n0000008OMRGA2
+03:38:43.22 (56539772)|USER_DEBUG|[14]|DEBUG|THe values of ql.SBQQ__Quote__c aOY0n0000004Cq9GAE
+03:38:43.22 (56554661)|USER_DEBUG|[14]|DEBUG|THe values of ql.SBQQ__Quote__c aOY0n0000004D8hGAE
+*****************
+
+
+
+
+
+
+List<SBQQ__QuoteLine__c> lines = [SELECT SBQQ__Discount__c, SBQQ__Quote__c, CPQ_Discount_Class__c,CPQ_Total_Effective_Discount__c,SBQQ__NetTotal__c, SBQQ__Quote__r.CPQ_Blended_Additional_Discount__c
+FROM 
+SBQQ__QuoteLine__c 
+WHERE
+CPQ_Total_Effective_Discount__c != NULL 
+AND SBQQ__NetTotal__c != NULL 
+AND CPQ_Discount_Class__c != NULL
+AND SBQQ__Quote__r.CPQ_Blended_Additional_Discount__c > 0];
+
+
+USER_DEBUG|[14]|DEBUG|THe values of ql.SBQQ__Quote__c aOY0n0000004CppGAE
+USER_DEBUG|[14]|DEBUG|THe values of ql.SBQQ__Quote__c aOY0n0000004CppGAE
+USER_DEBUG|[14]|DEBUG|THe values of ql.SBQQ__Quote__c aOY0n0000008OMRGA2
+USER_DEBUG|[14]|DEBUG|THe values of ql.SBQQ__Quote__c aOY0n0000004Cq9GAE
+USER_DEBUG|[14]|DEBUG|THe values of ql.SBQQ__Quote__c aOY0n0000004D8hGAE
+
+
+
+
+03:48:08.22 (39737071)|USER_DEBUG|[15]|DEBUG|THe values of ql.SBQQ__Quote__c aOY0n0000004CppGAE
+03:48:08.22 (39785266)|USER_DEBUG|[15]|DEBUG|THe values of ql.SBQQ__Quote__c aOY0n0000004CppGAE
+03:48:08.22 (39812826)|USER_DEBUG|[15]|DEBUG|THe values of ql.SBQQ__Quote__c aOY0n0000008OMRGA2
+03:48:08.22 (39828903)|USER_DEBUG|[15]|DEBUG|THe values of ql.SBQQ__Quote__c aOY0n0000004Cq9GAE
+03:48:08.22 (39843347)|USER_DEBUG|[15]|DEBUG|THe values of ql.SBQQ__Quote__c aOY0n0000004Cq9GAE
+03:48:08.22 (39857848)|USER_DEBUG|[15]|DEBUG|THe values of ql.SBQQ__Quote__c aOY0n0000004D8hGAE
+
+
+
+
+
+List<SBQQ__QuoteLine__c> lines = [SELECT SBQQ__Discount__c, SBQQ__Quote__c, CPQ_Discount_Class__c,CPQ_Total_Effective_Discount__c,SBQQ__NetTotal__c, SBQQ__Quote__r.CPQ_Blended_Additional_Discount__c
+FROM 
+SBQQ__QuoteLine__c 
+WHERE
+CPQ_Total_Effective_Discount__c != NULL 
+AND SBQQ__NetTotal__c != NULL 
+AND CPQ_Discount_Class__c != NULL
+AND SBQQ__Discount__c != NULL];
+
+
+
+03:49:07.22 (45728442)|USER_DEBUG|[15]|DEBUG|THe values of ql.SBQQ__Quote__c aOY0n0000004Cv9GAE aOY0n0000004Cv9GAE
+03:49:07.22 (45754798)|USER_DEBUG|[15]|DEBUG|THe values of ql.SBQQ__Quote__c aOY0n0000004CppGAE
+03:49:07.22 (45769163)|USER_DEBUG|[15]|DEBUG|THe values of ql.SBQQ__Quote__c aOY340000004CAQGA2 aOY340000004CAQGA2
+03:49:07.22 (45782784)|USER_DEBUG|[15]|DEBUG|THe values of ql.SBQQ__Quote__c aOY0n0000004CzpGAE aOY0n0000004CzpGAE
+03:49:07.22 (45795081)|USER_DEBUG|[15]|DEBUG|THe values of ql.SBQQ__Quote__c aOY0n0000004CppGAE
+03:49:07.22 (45808138)|USER_DEBUG|[15]|DEBUG|THe values of ql.SBQQ__Quote__c aOY0n0000008OMRGA2
+03:49:07.22 (45820345)|USER_DEBUG|[15]|DEBUG|THe values of ql.SBQQ__Quote__c aOY0n0000004Cq9GAE
+03:49:07.22 (45833929)|USER_DEBUG|[15]|DEBUG|THe values of ql.SBQQ__Quote__c aOY0n0000004D8hGAE 
+
+
+
+
+
+
+
+SBQQ__Quote__c = 
+'aOY0n0000004Cv9GAE'
+OR
+SBQQ__Quote__c =
+'aOY340000004CAQGA2'
+OR
+SBQQ__Quote__c =
+'aOY0n0000004CzpGAE'
+OR
+SBQQ__Quote__c = 
+'aOY0n0000004D8hGAE'
+OR
+SBQQ__Quote__c = 
+'aOY0n0000004CppGAE'
+OR
+SBQQ__Quote__c =
+'aOY0n0000004Cq9GAE'
+OR
+SBQQ__Quote__c =
+'aOY0n0000008OMqGAM'
+SBQQ__Quote__c =
+'aOY0n0000004Cv9GAE'
